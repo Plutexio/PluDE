@@ -291,3 +291,6 @@ Komentarze tłumaczą „dlaczego”. Ustawienia jako nazwane właściwości na 
 Wartości wyprowadzamy, zamiast je powielać. Cztery spacje, sekcje oddzielone
 blokiem myślników. Kolory i czasy animacji w `Common/Theme` są przepisane z wyspy:
 zmiana tutaj wymaga zmiany tam.
+
+Wygląd i ruch całego PluDE (paleta, krzywe, wzorce, pułapki GTK i hyprlocka
+przy przenoszeniu stylu poza QML): `DESIGN.md`.
