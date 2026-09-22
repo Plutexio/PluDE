@@ -31,6 +31,9 @@ Singleton {
     readonly property string islandPath: data.islandPath.replace(/^~/, Quickshell.env("HOME"))
     // Schowanie wyspy skrótem chowa też dock.
     readonly property alias hideWithIsland: data.hideWithIsland
+    // Pasek u góry rezerwuje miejsce: okna zaczynają się pod nim. false =
+    // pasek unosi się nad oknami jak wyspa.
+    readonly property alias barReserve: data.barReserve
 
     FileView {
         path: root.configDir + "/settings.json"
@@ -48,6 +51,7 @@ Singleton {
             property string terminal: "kitty"
             property string islandPath: "~/PluDynamicIsland"
             property bool hideWithIsland: true
+            property bool barReserve: true
         }
     }
 

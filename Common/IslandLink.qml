@@ -48,6 +48,10 @@ Singleton {
     // wyspa na razie pokazuje całą historię, id idzie na przyszłość).
     function showNotifications(id) { call("showNotifications", [id || ""]); }
 
+    // Otwiera nakładkę Wi-Fi / Bluetooth w wyspie, a drugi raz ją zamyka
+    // ("wifi" | "bluetooth"). Pasek u góry: klik w ikonę sieci.
+    function toggleOverlay(mode) { call("toggleOverlay", [mode]); }
+
     // ---- odczyt stanu ----
 
     QtObject {

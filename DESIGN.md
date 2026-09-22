@@ -64,7 +64,8 @@ Wzór: `kanał = tło + (kolor − tło) × procent`.
 
 ## Kształt i typografia
 
-- Zaokrąglenia: panel launchera **30**, dock **26**, komórka launchera
+- Zaokrąglenia: panel launchera **30**, dock **26**, pigułki paska i zwinięta
+  wyspa **pełne** (wysokość 34), komórka launchera
   **18**, menu **16**, wiersz menu **10**, podpowiedź **13**. Okna Hyprlanda
   **10**. Okrągłe przyciski to pełne koła.
 - Obrys 1 px, `border`. Cieni praktycznie brak.

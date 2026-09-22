@@ -26,10 +26,13 @@ PopupWindow {
     implicitWidth: menuWidth
     implicitHeight: column.implicitHeight + padding * 2
 
+    // Menu nad punktem (x, y) okna (dock), albo pod nim (pasek u góry).
+    property bool above: true
+
     // Menu nad punktem (x, y) okna, wyśrodkowane w poziomie.
     // Slide: przy krawędzi ekranu kompozytor przesuwa menu, zamiast je ucinać.
-    anchor.edges: Edges.Top
-    anchor.gravity: Edges.Top
+    anchor.edges: above ? Edges.Top : Edges.Bottom
+    anchor.gravity: above ? Edges.Top : Edges.Bottom
     anchor.adjustment: PopupAdjustment.Slide | PopupAdjustment.FlipY
 
     function openAt(window, x, y, list) {
@@ -43,6 +46,13 @@ PopupWindow {
     }
 
     function close() { visible = false; }
+
+    // Klik w przycisk, który menu otworzył, dochodzi PO zamknięciu menu
+    // przez kompozytor (klik obok). Pasek sprawdza to, żeby tym samym
+    // klikiem nie otworzyć menu z powrotem.
+    property double closedAt: 0
+    onVisibleChanged: if (!visible) closedAt = Date.now()
+    function recentlyClosed() { return Date.now() - closedAt < 250; }
 
     Rectangle {
         anchors.fill: parent

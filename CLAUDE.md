@@ -13,6 +13,9 @@ wyspy z `~/PluDynamicIsland`. Czysty QML, bez kroku budowania i bez testów.
   znaczek odtwarzania i rozmowy na Discordzie.
 - **Launcher** (`PluLauncher/`): przyciemniony ekran z wyszukiwaniem i siatką
   aplikacji, ranking po częstości użycia. Otwierany `SUPER+R`, przyciskiem w docku i przez IPC.
+- **Pasek** (`PluBar/`): dwie pigułki u góry po bokach wyspy. Lewa: obszary
+  robocze i zasobnik. Prawa: jasność, głośność, mikrofon, sieć, Bluetooth, tryb
+  energii, bateria, zasilanie. Klik w sieć lub BT otwiera nakładkę wyspy.
 
 Środowisko: Quickshell 0.3.1, Qt 6.11, **tylko Hyprland** (0.56, konfiguracja w Lua).
 Na innym kompozytorze `shell.qml` nie ładuje niczego i wypisuje jedną linię `console.info`.
@@ -24,8 +27,9 @@ qs -p .                                          # uruchomienie z katalogu proje
 timeout 6 qs -p . --no-color > run.log 2>&1      # przebieg kontrolny, 124 = sukces
 qs log -p ~/PluDE | tail                         # log działającej instancji
 qs ipc -p ~/PluDE call launcher toggle           # launcher z zewnątrz
+qs ipc -p ~/PluDE call bar brightnessStep 5      # jasność (klawisze w hyprland.lua)
 hyprctl globalshortcuts                          # czy launcherToggle się zarejestrował
-hyprctl layers -j                                # przestrzenie nazw plude-dock / plude-launcher
+hyprctl layers -j                                # przestrzenie nazw plude-dock / -launcher / -bar
 ```
 
 Czysty przebieg nie ma ani jednej linii `WARN`/`ERROR`. Wyjątek: przy pierwszym
@@ -56,15 +60,16 @@ i wysuwanie docka musi potwierdzić użytkownik.
 
 ## Architektura
 
-`shell.qml` → `Loader` (tylko Hyprland) → `Main.qml`: `Dock`, `Launcher`,
+`shell.qml` → `Loader` (tylko Hyprland) → `Main.qml`: `Dock`, `Launcher`, `Bar`,
 `IpcHandler` i `GlobalShortcut`. Moduły importuje się przez `import qs.Common` itd.
 Singletony w podkatalogach działają **bez `qmldir`** (sprawdzone sondą), a pliki
 w tym samym katalogu widzą się nawzajem bez importu.
 
 ```
-Common/      Theme, Settings, Apps, Pins, IslandLink, PopupMenu
+Common/      Theme, Settings, Apps, Pins, IslandLink, PopupMenu, Icon
 PluAppDock/  Dock (okno), DockItem (delegat), DockService (model)
 PluLauncher/ Launcher (okno), LauncherService (stan, wyszukiwanie, częstość)
+PluBar/      Bar (okno), BarButton, SliderPanel, Audio, Brightness, Connectivity
 ```
 
 **Launcher nie importuje docka** (dock importuje launcher dla przycisku
@@ -81,6 +86,9 @@ i restartowała mostki. Rozmowa między procesami:
   Plik, a nie IPC, bo zrestartowany dock ma od razu dostać stan. Po 15 s bez
   zapisu stan uznajemy za martwy i plakietki gasną.
 - **dock → wyspa**: `qs -p <islandPath> ipc call island showNotifications <id>`.
+- **pasek → wyspa**: `… call island toggleOverlay wifi|bluetooth` (nakładka
+  Wi-Fi / BT; ta sama drugi raz ją zamyka). Martwa wyspa → `nmtui` /
+  `bluetoothctl` w terminalu.
 - **Klucz aplikacji** po obu stronach to id wpisu `.desktop`.
 
 Media (znaczek odtwarzania) czytamy sami z MPRIS, nie przez wyspę. Wyspa wybiera
@@ -89,7 +97,7 @@ jeden odtwarzacz, a dock pokazuje znaczek przy każdym grającym.
 ### Pliki
 
 - `~/.config/plude/settings.json`: edytowany ręcznie (monitor, terminal, ścieżka
-  wyspy, `hideWithIsland`). Zmiany wchodzą na żywo.
+  wyspy, `hideWithIsland`, `barReserve`). Zmiany wchodzą na żywo.
 - `~/.config/plude/dock.json`: przypięte, pisze go program.
 - `~/.config/plude/launcher.json`: licznik i czas ostatniego uruchomienia.
 - `$XDG_RUNTIME_DIR/plude/seen.json`: kiedy ostatnio byłeś w aplikacji (plakietki).
@@ -202,6 +210,37 @@ z wyspy).
 - Zapas nad dockiem (`headroom` 76) mieści powiększoną ikonę z plakietką (~28 px
   przy 54 i 0,6) i podpowiedź nad nią. Podpowiedź idzie za skalą ikony pod
   kursorem (`tooltip.follow`). Większe `magnification` → podnieś `headroom`.
+
+### Pasek
+
+- Pigułki mają wysokość i `topMargin` zwiniętej wyspy (34 i 8), więc stoją
+  z nią w linii. Każda sięga najwyżej do `sideLimit`: środek ekranu zostaje
+  na najszerszą wyspę (`islandMaxWidth` = `overlayWidth` nakładek, 620)
+  plus `islandGap`. Zmienisz nakładkę w wyspie → zmień też tutaj.
+- Okno ma stałą wysokość z miejscem na podpowiedź pod pigułkami. Maska to
+  tylko dwie pigułki. `exclusiveZone` = 42 (okna zaczynają się pod paskiem),
+  wyłączane `barReserve: false` w `settings.json`. Schowany z wyspą pasek
+  oddaje miejsce, pełny ekran nie zmienia strefy (okna na innych obszarach
+  przeskakiwałyby przy każdym przełączeniu).
+- Tutaj MouseArea na każdej kontrolce jest w porządku: pasek się nie chowa,
+  więc kradzież hovera niczego nie zwija. Podpowiedź jest jedna, w oknie
+  paska; kontrolki zgłaszają najechanie przez `bar.noteHover`.
+- Panele (głośność, jasność) i menu trybu energii to `PopupWindow`
+  z `grabFocus`. Klik w kontrolkę dochodzi już PO zamknięciu panelu przez
+  kompozytor, więc `closedAt` blokuje ponowne otwarcie tym samym klikiem.
+- **Jasność**: odczyt z `/sys/class/backlight/*` co `pollMs` (sysfs nie
+  zgłasza zmian), zapis przez logind `Session.SetBrightness` (bez roota,
+  sprawdzone). Klawisze jasności w `hyprland.lua` idą przez IPC paska,
+  bo `brightnessctl` nie jest zainstalowany.
+- **Dźwięk i mikrofon** (`Audio`) to kopia `AudioService` wyspy: wiązanie
+  `PwObjectTracker`, krok 3%, mikrofon = wszystkie źródła naraz. Zmiana
+  głośności z paska to dla wyspy zmiana z zewnątrz, więc pokazuje ona swój pasek w pigułce.
+- **Obszary robocze**: `Hyprland.dispatch("hl.dsp.focus({ workspace = N })")`,
+  czyli składnia Lua jak w `hyprland.lua` (sprawdzone `hyprctl dispatch`: „ok”,
+  zła składnia daje błąd Lua; Quickshell wysyła to samo `dispatch …`). Repeater stoi
+  na liczbie kropek, nie na tablicy, żeby nowy obszar nie tworzył delegatów od nowa.
+- Bluetooth włączany jak w wyspie: `rfkill unblock`, bo zablokowany adapter
+  ignoruje `enabled = true`.
 
 ### Ikony
 
