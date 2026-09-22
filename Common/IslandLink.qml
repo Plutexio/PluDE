@@ -25,6 +25,9 @@ Singleton {
     // (wyspa odświeża go co heartbeatMs nawet bez zmian). Inaczej po
     // zamknięciu wyspy plakietki wisiałyby do końca świata.
     property int staleAfterMs: 15000
+    // Po tylu ms bez świeżego stanu czytamy plik sami (patrz Timer niżej).
+    // Nieco więcej niż heartbeat wyspy (5 s).
+    property int reloadAfterMs: 6000
 
     readonly property bool alive: priv.alive
     // { "<id .desktop>": [czas epoch ms, …] } — wpisy w historii wyspy.
@@ -88,6 +91,12 @@ Singleton {
         interval: 2000
         running: true
         repeat: true
-        onTriggered: root.checkAlive()
+        // watchChanges nie obserwuje pliku, którego jeszcze nie ma. Przy
+        // starcie sesji dock rusza razem z wyspą, przed jej pierwszym zapisem,
+        // i bez tego zostawał z alive = false do restartu (zmierzone sondą).
+        onTriggered: {
+            if (Date.now() - priv.lastUpdate > root.reloadAfterMs) file.reload();
+            root.checkAlive();
+        }
     }
 }
