@@ -5,13 +5,14 @@ import Quickshell
 import Quickshell.Io
 
 // ---------------------------------------------------------------
-// Ustawienia edytowane ręcznie: ~/.config/plude/settings.json.
-// Brak pliku → zapis domyślnych, więc po pierwszym starcie jest co edytować.
-// Zmiany w pliku wchodzą na żywo (watchChanges).
+// Ustawienia: ~/.config/plude/settings.json. Pisze je okno ustawień
+// (set), ale plik da się dalej edytować ręcznie. Brak pliku → zapis
+// domyślnych, więc po pierwszym starcie jest co edytować. Zmiany w pliku
+// wchodzą na żywo (watchChanges).
 //
-// Przypięte aplikacje NIE siedzą tutaj, tylko w dock.json (DockService) —
-// tamten plik pisze program przy każdym przypięciu i przeciągnięciu,
-// a ten ma zostać taki, jak go zostawił człowiek.
+// Przypięte aplikacje NIE siedzą tutaj, tylko w dock.json (DockService):
+// tamten plik zmienia się przy każdym przypięciu i przeciągnięciu, a ten
+// tylko wtedy, gdy ktoś świadomie zmienia ustawienie.
 // ---------------------------------------------------------------
 Singleton {
     id: root
@@ -29,11 +30,23 @@ Singleton {
     readonly property alias terminal: data.terminal
     // Katalog konfiguracji wyspy — pod nim idą polecenia IPC do niej.
     readonly property string islandPath: data.islandPath.replace(/^~/, Quickshell.env("HOME"))
+    // Tak, jak stoi w pliku (z ~) — do pokazania w oknie ustawień.
+    readonly property alias islandPathRaw: data.islandPath
     // Schowanie wyspy skrótem chowa też dock.
     readonly property alias hideWithIsland: data.hideWithIsland
     // Pasek u góry rezerwuje miejsce: okna zaczynają się pod nim. false =
     // pasek unosi się nad oknami jak wyspa.
     readonly property alias barReserve: data.barReserve
+
+    // Zmiana z okna ustawień. Zapis idzie sam (onAdapterUpdated), a
+    // powiązania z aliasami wyżej przeliczają się od razu.
+    function set(key, value) {
+        if (data[key] === undefined) {
+            console.warn("Settings.set: nie ma ustawienia " + key);
+            return;
+        }
+        if (data[key] !== value) data[key] = value;
+    }
 
     FileView {
         path: root.configDir + "/settings.json"

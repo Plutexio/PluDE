@@ -6,6 +6,7 @@ import qs.Common
 import qs.PluAppDock
 import qs.PluBar
 import qs.PluLauncher
+import qs.PluSettings
 
 // Właściwa powłoka, ładowana przez shell.qml tylko na Hyprlandzie.
 Item {
@@ -14,6 +15,13 @@ Item {
     Dock {}
     Launcher {}
     Bar {}
+
+    // Okno ustawień tylko wtedy, gdy otwarte: zamknięte nic nie kosztuje,
+    // a każde otwarcie zaczyna od czystego stanu.
+    LazyLoader {
+        active: SettingsApp.shown
+        SettingsWindow {}
+    }
 
     // ---- sterowanie z zewnątrz ----
     //
@@ -34,6 +42,17 @@ Item {
 
         function brightnessStep(percent: int): void { Brightness.stepBy(percent / 100); }
         function brightnessSet(percent: int): void { Brightness.set(percent / 100); }
+    }
+
+    //   qs -p ~/PluDE ipc call settings open
+    //   qs -p ~/PluDE ipc call settings openPage monitors
+    IpcHandler {
+        target: "settings"
+
+        function open(): void { SettingsApp.open(""); }
+        function openPage(page: string): void { SettingsApp.open(page); }
+        function toggle(): void { SettingsApp.toggle(); }
+        function close(): void { SettingsApp.close(); }
     }
 
     // Skrót globalny — klawisz przypisuje Hyprland (hyprland.lua):

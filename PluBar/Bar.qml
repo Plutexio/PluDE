@@ -6,6 +6,7 @@ import Quickshell.Widgets
 import Quickshell.Services.UPower
 import Quickshell.Services.SystemTray
 import qs.Common
+import qs.PluSettings
 
 // Pasek u góry ekranu: dwie pigułki po bokach, wyspa między nimi.
 //
@@ -63,7 +64,7 @@ PanelWindow {
     // Pasek rezerwuje miejsce (okna zaczynają się pod nim), chyba że
     // ustawienia mówią inaczej. Schowany razem z wyspą oddaje je oknom.
     exclusionMode: Settings.barReserve ? ExclusionMode.Normal : ExclusionMode.Ignore
-    exclusiveZone: hiddenWithIsland ? 0 : topMargin + barHeight
+    exclusiveZone: hiddenWithIsland ? 0 : topMargin + barHeight - 9
 
     WlrLayershell.namespace: "plude-bar"
     WlrLayershell.layer: WlrLayer.Top
@@ -624,10 +625,14 @@ PanelWindow {
                 delay: 7 * root.appearStagger
                 icon: "power"
                 tip: "Zasilanie"
-                hint: "klik: wyloguj, uśpij, wyłącz · SUPER+M"
+                hint: "klik: wyloguj, uśpij, wyłącz · SUPER+M · prawy: ustawienia"
                 onClicked: {
                     root.hideTip();
                     Quickshell.execDetached([Quickshell.env("HOME") + "/.config/wlogout/plude-wlogout"]);
+                }
+                onRightClicked: {
+                    root.hideTip();
+                    SettingsApp.open("");
                 }
             }
         }

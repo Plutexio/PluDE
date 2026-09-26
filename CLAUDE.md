@@ -16,6 +16,9 @@ wyspy z `~/PluDynamicIsland`. Czysty QML, bez kroku budowania i bez testów.
 - **Pasek** (`PluBar/`): dwie pigułki u góry po bokach wyspy. Lewa: obszary
   robocze i zasobnik. Prawa: jasność, głośność, mikrofon, sieć, Bluetooth, tryb
   energii, bateria, zasilanie. Klik w sieć lub BT otwiera nakładkę wyspy.
+- **Ustawienia** (`PluSettings/`): zwykłe okno aplikacji ze stronami „Ogólne”
+  (`settings.json`) i „Monitory”. Otwierane przez IPC, prawym klikiem na
+  zasilaniu w pasku i wpisem „Ustawienia PluDE” w launcherze.
 
 Środowisko: Quickshell 0.3.1, Qt 6.11, **tylko Hyprland** (0.56, konfiguracja w Lua).
 Na innym kompozytorze `shell.qml` nie ładuje niczego i wypisuje jedną linię `console.info`.
@@ -28,6 +31,7 @@ timeout 6 qs -p . --no-color > run.log 2>&1      # przebieg kontrolny, 124 = suk
 qs log -p ~/PluDE | tail                         # log działającej instancji
 qs ipc -p ~/PluDE call launcher toggle           # launcher z zewnątrz
 qs ipc -p ~/PluDE call bar brightnessStep 5      # jasność (klawisze w hyprland.lua)
+qs ipc -p ~/PluDE call settings openPage monitors  # okno ustawień (open / toggle / close)
 hyprctl globalshortcuts                          # czy launcherToggle się zarejestrował
 hyprctl layers -j                                # przestrzenie nazw plude-dock / -launcher / -bar
 ```
@@ -61,7 +65,7 @@ i wysuwanie docka musi potwierdzić użytkownik.
 ## Architektura
 
 `shell.qml` → `Loader` (tylko Hyprland) → `Main.qml`: `Dock`, `Launcher`, `Bar`,
-`IpcHandler` i `GlobalShortcut`. Moduły importuje się przez `import qs.Common` itd.
+`LazyLoader` z oknem ustawień, `IpcHandler` i `GlobalShortcut`. Moduły importuje się przez `import qs.Common` itd.
 Singletony w podkatalogach działają **bez `qmldir`** (sprawdzone sondą), a pliki
 w tym samym katalogu widzą się nawzajem bez importu.
 
@@ -70,6 +74,9 @@ Common/      Theme, Settings, Apps, Pins, IslandLink, PopupMenu, Icon
 PluAppDock/  Dock (okno), DockItem (delegat), DockService (model)
 PluLauncher/ Launcher (okno), LauncherService (stan, wyszukiwanie, częstość)
 PluBar/      Bar (okno), BarButton, SliderPanel, Audio, Brightness, Connectivity
+PluSettings/ SettingsApp (stan okna), SettingsWindow, GeneralPage, MonitorsPage,
+             MonitorService, MonitorDraft (szkic układu), MonitorCanvas,
+             MonitorConfirm, ChoiceMenu, kontrolki Settings{Section,Row,Switch,Field,Choice,Button}
 ```
 
 **Launcher nie importuje docka** (dock importuje launcher dla przycisku
@@ -96,10 +103,13 @@ jeden odtwarzacz, a dock pokazuje znaczek przy każdym grającym.
 
 ### Pliki
 
-- `~/.config/plude/settings.json`: edytowany ręcznie (monitor, terminal, ścieżka
-  wyspy, `hideWithIsland`, `barReserve`). Zmiany wchodzą na żywo.
+- `~/.config/plude/settings.json`: monitor, terminal, ścieżka wyspy,
+  `hideWithIsland`, `barReserve`. Pisze go okno ustawień (`Settings.set`), ale
+  można go dalej edytować ręcznie. Zmiany wchodzą na żywo.
 - `~/.config/plude/dock.json`: przypięte, pisze go program.
 - `~/.config/plude/launcher.json`: licznik i czas ostatniego uruchomienia.
+- `~/.config/plude/monitors.json`: reguły monitorów, pisze program. Z niego
+  powstaje `~/.config/hypr/plude-monitors.lua` (patrz „Monitory”).
 - `$XDG_RUNTIME_DIR/plude/seen.json`: kiedy ostatnio byłeś w aplikacji (plakietki).
   Leży w tmpfs, bo historia powiadomień wyspy też znika z restartem.
 
@@ -315,6 +325,86 @@ delegat w trakcie jego własnego handlera (pułapka z historii wyspy).
 z ustawień + `-e`, przez `execDetached` z katalogiem roboczym (sprawdzone:
 kontekst z `workingDirectory` działa). Aplikacje nie są dziećmi powłoki
 i przeżywają jej przeładowanie.
+
+### Okno ustawień
+
+- `FloatingWindow` (xdg toplevel) w `LazyLoader` powiązanym z `SettingsApp.shown`.
+  Zamknięcie przez kompozytor (SUPER+C) daje `visible = false` (zmierzone), a wtedy
+  okno się rozładowuje.
+- Klasa okna to zawsze `org.quickshell` (`FloatingWindow` nie ma `appId`). Dlatego:
+  - reguła `plude-settings` w `hyprland.lua` (pływa, 780×560, środek) łapie
+    okno po **tytule** (`SettingsApp.windowTitle`);
+  - `~/.local/share/applications/org.quickshell.desktop` nadpisuje ukryty wpis
+    systemowy. Dock pokazuje okno jako „Ustawienia PluDE”, launcher ma wpis.
+    `Exec` z `~` wewnątrz `sh -c "…"`, bo `$` w cudzysłowie to błąd składni
+    `.desktop` (ostrzeżenie `quickshell.desktopentry`).
+- Fokus na już otwarte okno: `hl.dsp.focus({ window = "title:…" })` **bez**
+  `^…$`. Z kotwicami dispatch odpowiada „ok”, ale fokus nie przechodzi (zmierzone).
+- Lista wyboru (`SettingsChoice`) rozwija **wspólny `ChoiceMenu` rysowany
+  w oknie** (`SettingsApp.menu`), a nie `Common/PopupMenu`. Popup z `grabFocus`
+  w zwykłym oknie (xdg toplevel) nie łapał kliknięć (zgłoszone przez
+  użytkownika): klik obok nie zamykał listy, a druga lista otwarta przy
+  wiszącej pierwszej lądowała w rogu ekranu. `ChoiceMenu` zamyka się przy
+  kliknięciu obok i przepuszcza je dalej (klik w inną listę otwiera ją od razu,
+  klik we własne pole tylko zamyka). Zamyka się też przy przewinięciu strony
+  i zmianie rozmiaru okna. Strzałki, Enter, Esc (Esc zamyka listę, nie okno).
+- Tryby monitora to tylko to, co zgłasza EDID. Matryca laptopa (Sharp 4K) ma
+  jeden tryb, jądro też widzi tylko `3840x2160` (`/sys/class/drm/card1-eDP-1/modes`).
+- Pole (`SettingsField`) zapisuje przy Enterze lub wyjściu z pola, Esc cofa
+  zmianę. `value` wchodzi do pola tylko bez fokusu (pułapka `text:`).
+- Zrzut: `ld.item.contentItem.children[0]` (FocusScope). W oknie jest osobny
+  prostokąt tła, bo bez niego zrzut wychodzi przezroczysty. W sondzie przestaw
+  `Settings.configDir` na katalog roboczy, żeby `set` nie pisał prawdziwego pliku.
+
+### Monitory (`PluSettings/MonitorService`)
+
+Strona „Monitory” edytuje **szkic** (`MonitorDraft`, bez interfejsu, więc sonda
+sprawdza go bez klikania). Do Hyprlanda idzie on dopiero po „Zastosuj”, a potem
+`MonitorConfirm` (nakładka na całe okno, nie na stronę) czeka na Enter lub Esc.
+
+- **`apply` wysyła cały układ, nie tylko zmienione monitory.** Monitor bez
+  własnej reguły ma z `hyprland.lua` pozycję `auto`, a Hyprland stawia takie na
+  prawo od monitorów z jawną pozycją. Zmierzone: reguła tylko dla atrapy
+  przestawiła eDP-1 z (0,0) na (3840,0).
+- Układ jest normalizowany do (0,0) dopiero przy `apply` (automat ekranu
+  docka szuka (0,0)). `dirty` porównuje surowy szkic, żeby układ Hyprlanda
+  niezaczynający się w (0,0) nie wyglądał na zmieniony.
+- Zmiana rozmiaru logicznego (tryb, skala, obrót) przesuwa sąsiadów na
+  prawo i poniżej o różnicę. Przyciąganie krawędzi (`moveTo`) liczy
+  `snapPx` ekranu przeliczone na px logiczne.
+- `MonitorCanvas`: `Repeater` na **liczbie** monitorów (tablica szkicu
+  zmienia się przy każdym ruchu myszy i odtwarzałaby delegaty w trakcie
+  przeciągania). Widok (`fit`) zamrożony na czas przeciągania.
+- Odświeżanie w szkicu dociągnięte do listy trybów (Hyprland podaje 59.997,
+  lista 60.00), skala do 1/120. Inaczej listy wyboru nie znajdą bieżącej wartości.
+- Reguły z `eval` zostają w Hyprlandzie do `hyprctl reload`, także dla atrap
+  po ich usunięciu. Atrapa podłączona ponownie wraca z ostatnią regułą.
+
+- Odczyt: `hyprctl monitors all -j` (z wyłączonymi i `availableModes`),
+  odświeżany po zdarzeniach `monitoradded*`, `monitorremoved*`, `configreloaded`.
+- Zmiana na żywo: `hyprctl eval 'hl.monitor({ … })'`, bez przeładowania.
+  hyprctl kończy się kodem 0 także przy błędzie Lua, więc o wyniku mówi treść:
+  „ok” albo „error: …”. `eval 'error(x)'` to sposób na odczyt wartości z Lua.
+- Po zmianie `confirmSeconds` na potwierdzenie, potem cofnięcie. Do tego
+  strażnik poza procesem (`sh` przez `execDetached` + znacznik
+  w `$XDG_RUNTIME_DIR/plude/`), bo przeładowanie powłoki w trakcie
+  oczekiwania zostawiłoby niepotwierdzoną zmianę na zawsze. Zmierzone: po
+  wyjściu sondy strażnik przywrócił ostatni zatwierdzony stan.
+- Zapis: przy potwierdzeniu cały podłączony układ (pozycje zależą od siebie)
+  trafia do `monitors.json`, a z niego do `plude-monitors.lua`. `hyprland.lua`
+  dołącza ten plik przez `dofile` na końcu sekcji MONITORS. Nie `require`, bo stan
+  Lua trwa między wywołaniami `eval` (zmierzone) i `require` zwróciłby moduł z pamięci.
+- Reguły po opisie (`output = "desc:…"`, działa), nazwa portu tylko przy
+  pustym opisie. Reguła ustawiona przed podłączeniem monitora działa po nim.
+- Pułapki (zmierzone): reguła bez `disabled = false` NIE włącza wyłączonego
+  monitora (zawsze komplet pól). Złą skalę Hyprland po cichu poprawia, a
+  `validScales` (k/120, rozmiar logiczny w całych pikselach) zgadza się z nim
+  w 8/8 przypadków. Klon wyłącza `mirror = ""`, a `mirrorOf` w JSON-ie to id.
+- Sondy na atrapach: `hyprctl output create headless NAZWA` / `output remove
+  NAZWA` (atrapa ma pusty opis). W kopii projektu przestaw `hyprDir`
+  i ścieżkę `monitors.json`, żeby nie nadpisać prawdziwych plików.
+- Singleton powstaje przy pierwszym dotknięciu, `ready` mówi, że doszedł
+  pierwszy odczyt.
 
 ### Hyprland w Lua
 
