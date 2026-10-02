@@ -177,7 +177,8 @@ FloatingWindow {
                     id: pageLoader
 
                     width: body.width
-                    sourceComponent: SettingsApp.page === "monitors" ? monitorsPage : generalPage
+                    sourceComponent: SettingsApp.page === "monitors" ? monitorsPage
+                        : SettingsApp.page === "capture" ? capturePage : generalPage
 
                     // Krótkie wejście strony: bez odbicia, to tylko zmiana treści.
                     property real enter: 1
@@ -223,5 +224,10 @@ FloatingWindow {
     Component {
         id: monitorsPage
         MonitorsPage { width: pageLoader.width }
+    }
+
+    Component {
+        id: capturePage
+        CapturePage { width: pageLoader.width }
     }
 }

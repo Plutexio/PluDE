@@ -114,13 +114,16 @@ Zasady:
 
 ## Wzorce elementów
 
-- **Panel pełnoekranowy** (launcher, koło wylogowania): przyciemniony
+- **Panel pełnoekranowy** (launcher, schowek, koło wylogowania): przyciemniony
   ekran 0.45, panel `surface` z obrysem `border` na środku, klik obok
   zamyka, Esc zamyka, drugie wciśnięcie skrótu zamyka.
 - **Przycisk / komórka**: `surfaceRaised`, obrys `border`, podpis `textDim`
   pod ikoną. Najechanie: odcień akcentu + obrys w pełnym akcencie + tekst
   `text` + ikona rośnie. Akcje nieodwracalne: restart w `warning`,
   wyłączenie w `danger`.
+- **Podgląd w rogu** (zrzut ekranu): karta `surface` 20, wjeżdża sprężyną
+  z prawej, znika sama po 6 s, najechanie ją zatrzymuje. Okrągłe przyciski
+  akcji, usuwanie w `danger`.
 - **Skróty** jako małe plakietki (zaokrąglone 6, `surfaceRaised`, litera
   pogrubiona w `text`) przy elemencie, którego dotyczą.
 - **Pola tekstowe**: `surfaceRaised`, placeholder w `textFaint`, stan
@@ -165,4 +168,5 @@ Zmieniasz paletę lub czasy → popraw też:
 - `~/PluDE/Common/Theme.qml`,
 - `~/.config/wlogout/style.css`, `wheel.svg`, `icons/*.svg`,
 - `~/.config/hypr/hyprlock.conf`,
+- `~/.config/swappy/config` (`custom_color` to akcent, czcionka),
 - `~/.config/hypr/hyprland.lua` (obramowanie okien, reguły warstw).

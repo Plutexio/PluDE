@@ -17,8 +17,13 @@ wyspy z `~/PluDynamicIsland`. Czysty QML, bez kroku budowania i bez testów.
   robocze i zasobnik. Prawa: jasność, głośność, mikrofon, sieć, Bluetooth, tryb
   energii, bateria, zasilanie. Klik w sieć lub BT otwiera nakładkę wyspy.
 - **Ustawienia** (`PluSettings/`): zwykłe okno aplikacji ze stronami „Ogólne”
-  (`settings.json`) i „Monitory”. Otwierane przez IPC, prawym klikiem na
-  zasilaniu w pasku i wpisem „Ustawienia PluDE” w launcherze.
+  (`settings.json`), „Monitory” i „Schowek i zrzuty”. Otwierane przez IPC,
+  prawym klikiem na zasilaniu w pasku i wpisem „Ustawienia PluDE” w launcherze.
+- **Schowek** (`PluClipboard/`): historia schowka (tekst i obrazy) na
+  `wl-clipboard`, panel jak launcher. `SUPER+SHIFT+V`, wpis „Schowek”, IPC.
+- **Zrzuty ekranu** (`PluScreenshot/`): `grim` + `slurp` + `swappy`, gotowy
+  zrzut zgłasza wyspa (bez niej podgląd w rogu ekranu). `Print` (obszar albo okno), `SHIFT+Print` (ekran),
+  `SUPER+Print` (aktywne okno), wpis „Zrzut ekranu”, IPC.
 
 Środowisko: Quickshell 0.3.1, Qt 6.11, **tylko Hyprland** (0.56, konfiguracja w Lua).
 Na innym kompozytorze `shell.qml` nie ładuje niczego i wypisuje jedną linię `console.info`.
@@ -32,8 +37,11 @@ qs log -p ~/PluDE | tail                         # log działającej instancji
 qs ipc -p ~/PluDE call launcher toggle           # launcher z zewnątrz
 qs ipc -p ~/PluDE call bar brightnessStep 5      # jasność (klawisze w hyprland.lua)
 qs ipc -p ~/PluDE call settings openPage monitors  # okno ustawień (open / toggle / close)
-hyprctl globalshortcuts                          # czy launcherToggle się zarejestrował
-hyprctl layers -j                                # przestrzenie nazw plude-dock / -launcher / -bar
+qs ipc -p ~/PluDE call clipboard toggle          # historia schowka (show / hide / clear)
+qs ipc -p ~/PluDE call screenshot region         # zrzut: region / window / screen / edit
+qs ipc -p ~/PluDE call screenshot delayed screen 3   # zrzut za 3 s, z odliczaniem
+hyprctl globalshortcuts                          # czy skróty quickshell:* się zarejestrowały
+hyprctl layers -j                                # przestrzenie nazw plude-dock / -launcher / -bar / -clipboard / -shot
 ```
 
 Czysty przebieg nie ma ani jednej linii `WARN`/`ERROR`. Wyjątek: przy pierwszym
@@ -41,14 +49,20 @@ starcie (brak plików w `~/.config/plude/`) po jednym „Read … failed: File d
 exist” i „got operation finished from dropped operation” na plik. Pliki się wtedy
 zapisują i następny start jest czysty.
 
-Autostart i `SUPER+R` są w `~/.config/hypr/hyprland.lua` (sekcje AUTOSTART, bind R
-i PLUDE na końcu: reguła warstw `no_anim`; rozmycia pod launcherem celowo nie ma).
+Autostart i skróty są w `~/.config/hypr/hyprland.lua` (sekcje AUTOSTART, bindy
+pod R i PLUDE na końcu: reguły warstw `no_anim`; rozmycia pod launcherem celowo nie ma).
+Zależności spoza Quickshella: `wl-clipboard`, `grim`, `slurp`, `swappy`
+(brak → komunikat w podglądzie zrzutu i na stronie ustawień, nic się nie wysypuje).
 
 ### Weryfikacja
 
 Zasady jak w wyspie: `qmllint` nic tu nie da, jedyna realna walidacja to przebieg
 i log. Sondy (`_probe*.qml`) uruchamiaj z **kopii** projektu w katalogu roboczym
 sesji. Działająca instancja przeładowuje pliki z tego katalogu na żywo.
+Przeładowanie rusza tylko po zapisie **w miejscu** i przy zmienionej treści:
+`sed -i` podmienia plik (nowy i-węzeł) i instancja gubi jego obserwację, a zapis
+tej samej treści nic nie robi (zmierzone: 0 przeładowań po obu). Wtedy pomaga
+rzeczywista zmiana w innym obserwowanym pliku.
 
 **Zrzuty.** `grabToImage` na `contentItem` okna nie działa („item has no QML
 engine”). Trzeba chwycić element w środku, np. tło docka znalezione po
@@ -65,7 +79,7 @@ i wysuwanie docka musi potwierdzić użytkownik.
 ## Architektura
 
 `shell.qml` → `Loader` (tylko Hyprland) → `Main.qml`: `Dock`, `Launcher`, `Bar`,
-`LazyLoader` z oknem ustawień, `IpcHandler` i `GlobalShortcut`. Moduły importuje się przez `import qs.Common` itd.
+`Clipboard`, `ShotToast`, `LazyLoader` z oknem ustawień, `IpcHandler` i `GlobalShortcut`. Moduły importuje się przez `import qs.Common` itd.
 Singletony w podkatalogach działają **bez `qmldir`** (sprawdzone sondą), a pliki
 w tym samym katalogu widzą się nawzajem bez importu.
 
@@ -74,7 +88,9 @@ Common/      Theme, Settings, Apps, Pins, IslandLink, PopupMenu, Icon
 PluAppDock/  Dock (okno), DockItem (delegat), DockService (model)
 PluLauncher/ Launcher (okno), LauncherService (stan, wyszukiwanie, częstość)
 PluBar/      Bar (okno), BarButton, SliderPanel, Audio, Brightness, Connectivity
-PluSettings/ SettingsApp (stan okna), SettingsWindow, GeneralPage, MonitorsPage,
+PluClipboard/  ClipboardService (historia, stan okna), Clipboard (okno), clip-store.sh
+PluScreenshot/ ScreenshotService (kolejność kroków), ShotToast (podgląd w rogu)
+PluSettings/ SettingsApp (stan okna), SettingsWindow, GeneralPage, MonitorsPage, CapturePage,
              MonitorService, MonitorDraft (szkic układu), MonitorCanvas,
              MonitorConfirm, ChoiceMenu, kontrolki Settings{Section,Row,Switch,Field,Choice,Button}
 ```
@@ -93,6 +109,8 @@ i restartowała mostki. Rozmowa między procesami:
   Plik, a nie IPC, bo zrestartowany dock ma od razu dostać stan. Po 15 s bez
   zapisu stan uznajemy za martwy i plakietki gasną.
 - **dock → wyspa**: `qs -p <islandPath> ipc call island showNotifications <id>`.
+- **zrzuty → wyspa**: zwykłe powiadomienie (`notify-send`), wyspa jest demonem
+  powiadomień. Akcje wracają przez IPC PluDE (patrz „Zrzuty ekranu”).
 - **pasek → wyspa**: `… call island toggleOverlay wifi|bluetooth` (nakładka
   Wi-Fi / BT; ta sama drugi raz ją zamyka). Martwa wyspa → `nmtui` /
   `bluetoothctl` w terminalu.
@@ -104,12 +122,15 @@ jeden odtwarzacz, a dock pokazuje znaczek przy każdym grającym.
 ### Pliki
 
 - `~/.config/plude/settings.json`: monitor, terminal, ścieżka wyspy,
-  `hideWithIsland`, `barReserve`. Pisze go okno ustawień (`Settings.set`), ale
+  `hideWithIsland`, `barReserve`, `screenshot*`, `clipboard*`. Pisze go okno ustawień (`Settings.set`), ale
   można go dalej edytować ręcznie. Zmiany wchodzą na żywo.
 - `~/.config/plude/dock.json`: przypięte, pisze go program.
 - `~/.config/plude/launcher.json`: licznik i czas ostatniego uruchomienia.
 - `~/.config/plude/monitors.json`: reguły monitorów, pisze program. Z niego
   powstaje `~/.config/hypr/plude-monitors.lua` (patrz „Monitory”).
+- `~/.local/state/plude/clipboard/`: historia schowka. `index.json` (spis
+  z podglądem tekstu) i po jednym pliku z treścią na wpis (`<skrót>.txt`, `.png`).
+  Katalog ma tryb 700: to jawna treść schowka.
 - `$XDG_RUNTIME_DIR/plude/seen.json`: kiedy ostatnio byłeś w aplikacji (plakietki).
   Leży w tmpfs, bo historia powiadomień wyspy też znika z restartem.
 
@@ -312,6 +333,89 @@ z wyspy).
 - Zrzut zaraz po ponownym pokazaniu okna nie działa („item is not attached to
   a window” przez ~200 ms). Fali otwarcia nie da się złapać `grabToImage`.
 
+### Schowek (`PluClipboard/`)
+
+- **Dwóch obserwatorów**: `wl-paste --type text --watch` i `--type image --watch`.
+  Zmierzone: `--watch` bez typu budzi polecenie tylko dla tekstu (sam obraz
+  w schowku nic nie zgłasza). Wyczyszczenie schowka i zamknięcie aplikacji, która
+  go trzymała, nie dają żadnego zdarzenia, więc „podtrzymywania” schowka nie ma.
+- Obserwator woła `clip-store.sh` z treścią na stdin i `CLIPBOARD_STATE` w
+  środowisku: `data`, `nil` (pusty schowek przy starcie) albo `sensitive`
+  (`x-kde-passwordManagerHint`, czyli hasło z menedżera haseł). Zapisujemy tylko `data`.
+- Skrypt zawsze czyta stdin do końca: po drugiej stronie potoku pisze aplikacja,
+  z której skopiowano.
+- Jedno skopiowanie = jeden wpis. `text/plain` wygrywa z obrazem (komórki
+  arkusza), obraz wygrywa z samym `text/html` (obraz z przeglądarki).
+- Id wpisu to skrót treści (sha256, 24 znaki): to samo skopiowane ponownie
+  wraca na górę. Wynik skryptu to jedna linia na stdout, dziedziczonym po
+  `wl-paste`, więc czyta ją `SplitParser` procesu obserwatora.
+- Podgląd tekstu idzie w tej linii z `\n`, `\t`, `\r`, `\\` jako dwa znaki, **nie
+  w base64**: `Qt.atob(string)` wypisuje ostrzeżenie o przestarzałej metodzie.
+- Obserwatorzy ruszają dopiero po wczytaniu spisu (`ready`). Zdarzenie sprzed
+  wczytania zapisałoby spis z jednym wpisem. Przy każdym starcie obserwator
+  zgłasza bieżącą treść schowka; `ingest` pomija ją, jeśli stoi już na górze.
+- Wybór wpisu: `wl-copy < plik` (obraz z `--type`), a przy `clipboardPaste`
+  potem `hl.dsp.send_shortcut({ mods, key = "V", window = "address:0x…" })` do
+  okna aktywnego przy otwarciu. Terminale (`terminalClasses`, po fragmencie
+  klasy) dostają `CTRL SHIFT`. Zmierzone: `send_shortcut` dochodzi także do okna
+  bez fokusu, ale **wklejenie działa tylko w oknie z fokusem** (Wayland daje
+  schowek tylko jemu). Fokus wraca sam, bo `keyboardFocus` spada do `None`
+  od razu przy `open = false`, a skrót idzie `pasteDelayMs` po `wl-copy`.
+- `Hyprland.activeToplevel` i `focusedMonitor` są leniwe jak inne usługi
+  (zmierzone: `null` przy pierwszym odczycie), dlatego usługi trzymają je w powiązaniach.
+- Okno otwiera się na monitorze z fokusem (`ClipboardService.screen`), nie na
+  monitorze docka. Reszta (reveal, fala, `ListModel` synchronizowany ruchami,
+  przejścia tylko przy `open`) jak w launcherze.
+- Limit (`clipboardMax`) nie obejmuje przypiętych. Pliki wpisów, które wypadły,
+  kasuje `rm` od razu, a osierocone (starsze niż minuta) `sweep` przy starcie.
+- Sonda: w kopii przestaw `Settings.stateDir` i `configDir`, inaczej sonda pisze
+  do prawdziwej historii. Okno testowe do wklejania: `kitty --class …` na
+  obszarze specjalnym (`hl.dsp.exec_cmd(cmd, { workspace = "special:x silent" })`).
+
+### Zrzuty ekranu (`PluScreenshot/`)
+
+- Kolejność: `hyprctl -j monitors / clients / activewindow` (jeden proces) →
+  `slurp` (tylko tryb `region`) → `grim` → `wl-copy` → powiadomienie w wyspie albo `swappy`.
+- **Gotowy zrzut i błąd zgłasza wyspa** (`viaIsland`: żyje i nie jest schowana):
+  `notify-send` z miniaturą jako ikoną (`-i plik`), `desktop-entry` =
+  `plude-screenshot-notice` i akcjami `default` / `edit` / `folder` / `delete`.
+  Nadawcą jest osobny, ukryty wpis z `Exec=true`: klik w kartę w wyspie woła
+  akcję domyślną i dodatkowo uruchamia wpis nadawcy, a `plude-screenshot`
+  zrobiłby wtedy nowy zrzut.
+  notify-send wypisuje nazwę klikniętej akcji, a skrypt oddaje ją przez
+  `ipc call screenshot act <akcja> <plik>`. Proces czeka na klik najwyżej
+  `actionWaitSeconds`, bo wyspa nie wygasza powiadomień z historii.
+  Bez wyspy to samo pokazuje `ShotToast`, który zawsze obsługuje odliczanie.
+  Przyciski akcji w wyspie wymagały poprawki po jej stronie: `removeEntry`
+  robił `dismiss()` przed `invoke()` i akcja ginęła („Cannot invoke destroyed
+  notification” w logu wyspy). Teraz `removeEntry(entry, true)` zostawia
+  powiadomienie otwarte.
+- **Tryb `region` to obszar i okno naraz**: slurp dostaje na stdin prostokąty
+  widocznych okien i monitorów. Przeciągnięcie zaznacza obszar, klik bierze
+  pole pod kursorem. Kolejność pól = co jest na wierzchu (obszar specjalny,
+  pływające, kafelki, monitor).
+- Kolory slurpa liczone z `Theme` (`hex`): tło jak przyciemnienie launchera,
+  zaznaczenie `00000000` (slurp rysuje je operatorem źródła, więc wycina dziurę
+  w przyciemnieniu).
+- Warstwa slurpa ma przestrzeń nazw `selection`. Reguła `no_anim` w
+  `hyprland.lua`, żeby zanikająca ramka nie łapała się na zrzut.
+- `grim -l 1`. Zmierzone na ekranie 4K: poziom 6 (domyślny) 2,2 s, poziom 1
+  0,76 s i plik większy o 26%, poziom 0 0,18 s i 25 MB.
+- Kody wyjścia skryptu zrzutu: 10 = anulowane w slurpie, 127 = brak narzędzia
+  (nazwa na stdout), reszta = błąd grima.
+- **swappy z `-o`**: wynik zapisuje się przy zamknięciu okna (zmierzone, także
+  przy zamknięciu przez kompozytor) i wraca do schowka. Dla zrzutu to ten sam
+  plik, dla obrazu z historii schowka nowy plik w katalogu zrzutów. Przez
+  `execDetached`: edytor ma przeżyć przeładowanie powłoki.
+  `~/.config/swappy/config`: katalog przycisku „Zapisz”, czcionka, kolor akcentu.
+- Podgląd (`ShotToast`) chowa się przed następnym zrzutem (`starting`) i wtedy
+  zrzut czeka `settleMs`. Najechanie liczone z karty, miniatury i przycisków
+  osobno (kradzież hovera). Kliknięcia w podglądzie i w akcje powiadomienia
+  musi potwierdzić użytkownik.
+- Wpisy launchera mają `sleep 0.3` w `Exec`: launcher zamyka się 170 ms.
+- Sonda: narzędzia można rozpakować z paczek do katalogu roboczego
+  (`pacman -Sp grim` → `curl` → `bsdtar`) i dodać do `PATH` sondy.
+
 ### Menu (`PopupMenu`)
 
 `PopupWindow` z `grabFocus: true` (klik obok zamyka), a nie element w oknie docka.
@@ -408,7 +512,8 @@ sprawdza go bez klikania). Do Hyprlanda idzie on dopiero po „Zastosuj”, a po
 
 ### Hyprland w Lua
 
-- Skrót globalny: `hl.dsp.global("quickshell:launcherToggle")`. Sprawdzone przez
+- Skróty globalne: `hl.dsp.global("quickshell:launcherToggle")`, tak samo
+  `clipboardToggle`, `screenshotRegion`, `screenshotScreen`, `screenshotWindow`. Sprawdzone przez
   `hyprctl dispatch 'hl.dsp.global("…")'`: warstwa `plude-launcher` się pojawia.
 - Reguła warstwy: `hl.layer_rule({ name, match = { namespace = "^…$" }, … })`.
 - `Hyprland.usingLua` = true. Stuby API: `/usr/share/hypr/stubs/hl.meta.lua`.

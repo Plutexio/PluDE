@@ -5,7 +5,9 @@ import Quickshell.Io
 import qs.Common
 import qs.PluAppDock
 import qs.PluBar
+import qs.PluClipboard
 import qs.PluLauncher
+import qs.PluScreenshot
 import qs.PluSettings
 
 // Właściwa powłoka, ładowana przez shell.qml tylko na Hyprlandzie.
@@ -15,6 +17,8 @@ Item {
     Dock {}
     Launcher {}
     Bar {}
+    Clipboard {}
+    ShotToast {}
 
     // Okno ustawień tylko wtedy, gdy otwarte: zamknięte nic nie kosztuje,
     // a każde otwarcie zaczyna od czystego stanu.
@@ -55,7 +59,34 @@ Item {
         function close(): void { SettingsApp.close(); }
     }
 
-    // Skrót globalny — klawisz przypisuje Hyprland (hyprland.lua):
+    //   qs -p ~/PluDE ipc call clipboard toggle
+    IpcHandler {
+        target: "clipboard"
+
+        function toggle(): void { ClipboardService.toggle(); }
+        function show(): void { ClipboardService.show(); }
+        function hide(): void { ClipboardService.hide(); }
+        function clear(): void { ClipboardService.clear(); }
+    }
+
+    //   qs -p ~/PluDE ipc call screenshot region
+    //   qs -p ~/PluDE ipc call screenshot delayed screen 3
+    IpcHandler {
+        target: "screenshot"
+
+        function region(): void { ScreenshotService.capture("region"); }
+        function window(): void { ScreenshotService.capture("window"); }
+        function screen(): void { ScreenshotService.capture("screen"); }
+        function delayed(mode: string, seconds: int): void { ScreenshotService.delayed(mode, seconds); }
+        // Akcja z powiadomienia o zrzucie w wyspie: edit / folder / delete.
+        function act(action: string, path: string): void { ScreenshotService.act(action, path); }
+        // Ostatni zrzut w edytorze (swappy).
+        function edit(): void {
+            if (ScreenshotService.last) ScreenshotService.edit(ScreenshotService.last.path, ScreenshotService.last.path);
+        }
+    }
+
+    // Skróty globalne — klawisze przypisuje Hyprland (hyprland.lua):
     //   hl.bind(mainMod .. " + R", hl.dsp.global("quickshell:launcherToggle"))
     GlobalShortcut {
         appid: "quickshell"
@@ -63,5 +94,37 @@ Item {
         description: "Pokaż / ukryj launcher PluDE"
 
         onPressed: LauncherService.toggle()
+    }
+
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "clipboardToggle"
+        description: "Pokaż / ukryj historię schowka PluDE"
+
+        onPressed: ClipboardService.toggle()
+    }
+
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "screenshotRegion"
+        description: "Zrzut zaznaczonego obszaru albo klikniętego okna"
+
+        onPressed: ScreenshotService.capture("region")
+    }
+
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "screenshotScreen"
+        description: "Zrzut całego ekranu"
+
+        onPressed: ScreenshotService.capture("screen")
+    }
+
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "screenshotWindow"
+        description: "Zrzut aktywnego okna"
+
+        onPressed: ScreenshotService.capture("window")
     }
 }

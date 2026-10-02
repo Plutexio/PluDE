@@ -38,6 +38,22 @@ Singleton {
     // pasek unosi się nad oknami jak wyspa.
     readonly property alias barReserve: data.barReserve
 
+    // ---- zrzuty ekranu i schowek ----
+    // Stan trwały, który nie jest konfiguracją (historia schowka).
+    readonly property string stateDir: Quickshell.env("HOME") + "/.local/state/plude"
+    readonly property string screenshotDir: data.screenshotDir.replace(/^~/, Quickshell.env("HOME"))
+    readonly property alias screenshotDirRaw: data.screenshotDir
+    // Kursor na zrzucie (grim -c).
+    readonly property alias screenshotCursor: data.screenshotCursor
+    // Zrzut ląduje też w schowku (a przez to w jego historii).
+    readonly property alias screenshotCopy: data.screenshotCopy
+    // Po zrzucie od razu edytor (swappy) zamiast podglądu w rogu.
+    readonly property alias screenshotEdit: data.screenshotEdit
+    // Ile wpisów historii schowka zostaje (przypięte się nie liczą).
+    readonly property alias clipboardMax: data.clipboardMax
+    // Wybrany wpis jest od razu wklejany do okna, z którego otwarto schowek.
+    readonly property alias clipboardPaste: data.clipboardPaste
+
     // Zmiana z okna ustawień. Zapis idzie sam (onAdapterUpdated), a
     // powiązania z aliasami wyżej przeliczają się od razu.
     function set(key, value) {
@@ -65,6 +81,12 @@ Singleton {
             property string islandPath: "~/PluDynamicIsland"
             property bool hideWithIsland: true
             property bool barReserve: true
+            property string screenshotDir: "~/Pictures/Screenshots"
+            property bool screenshotCursor: false
+            property bool screenshotCopy: true
+            property bool screenshotEdit: false
+            property int clipboardMax: 100
+            property bool clipboardPaste: true
         }
     }
 
