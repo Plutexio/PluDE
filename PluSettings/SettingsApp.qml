@@ -21,7 +21,8 @@ Singleton {
     readonly property var pages: [
         { id: "general", title: "Ogólne", icon: "tune" },
         { id: "monitors", title: "Monitory", icon: "computer" },
-        { id: "capture", title: "Schowek i zrzuty", icon: "paste" }
+        { id: "capture", title: "Schowek i zrzuty", icon: "paste" },
+        { id: "island", title: "Wyspa", icon: "island" }
     ]
 
     property bool shown: false

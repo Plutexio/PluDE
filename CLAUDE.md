@@ -20,7 +20,8 @@ wyspy z `~/PluDynamicIsland`. Czysty QML, bez kroku budowania i bez testów.
   launchera i obszarami (bez zasobnika), a na dole dock z launcherem i ich
   oknami (`PluAppDock/MiniDock`).
 - **Ustawienia** (`PluSettings/`): zwykłe okno aplikacji ze stronami „Ogólne”
-  (`settings.json`), „Monitory” i „Schowek i zrzuty”. Otwierane przez IPC,
+  (`settings.json`), „Monitory”, „Schowek i zrzuty” i „Wyspa” (konfiguracja
+  PluDynamicIsland). Otwierane przez IPC,
   prawym klikiem na zasilaniu w pasku i wpisem „Ustawienia PluDE” w launcherze.
 - **Schowek** (`PluClipboard/`): historia schowka (tekst i obrazy) na
   `wl-clipboard`, panel jak launcher. `SUPER+SHIFT+V`, wpis „Schowek”, IPC.
@@ -65,6 +66,11 @@ Zależności spoza Quickshella: `wl-clipboard`, `grim`, `slurp`, `swappy`
 Zasady jak w wyspie: `qmllint` nic tu nie da, jedyna realna walidacja to przebieg
 i log. Sondy (`_probe*.qml`) uruchamiaj z **kopii** projektu w katalogu roboczym
 sesji. Działająca instancja przeładowuje pliki z tego katalogu na żywo.
+**Nowy plik `.qml` wymaga pełnego restartu** (`quickshell -c ~/PluDE`):
+przeładowanie na żywo nie widzi typów z plików, których nie było przy starcie
+(zmierzone: „IslandPage is not a type” po kolejnych przeładowaniach, świeży
+proces w porządku). Do tego czasu nie działa też wszystko, co nowy typ
+importuje — tu całe okno ustawień („Type SettingsWindow unavailable”).
 Przeładowanie rusza tylko po zapisie **w miejscu** i przy zmienionej treści:
 `sed -i` podmienia plik (nowy i-węzeł) i instancja gubi jego obserwację, a zapis
 tej samej treści nic nie robi (zmierzone: 0 przeładowań po obu). Wtedy pomaga
@@ -99,8 +105,9 @@ PluBar/      Bar (okno), BarButton, SliderPanel, Audio, Brightness, Connectivity
 PluClipboard/  ClipboardService (historia, stan okna), Clipboard (okno), clip-store.sh
 PluScreenshot/ ScreenshotService (kolejność kroków), ShotToast (podgląd w rogu)
 PluSettings/ SettingsApp (stan okna), SettingsWindow, GeneralPage, MonitorsPage, CapturePage,
+             IslandPage, IslandConfigService (config.jsonc wyspy),
              MonitorService, MonitorDraft (szkic układu), MonitorCanvas,
-             MonitorConfirm, ChoiceMenu, kontrolki Settings{Section,Row,Switch,Field,Choice,Button}
+             MonitorConfirm, ChoiceMenu, kontrolki Settings{Section,Row,Switch,Field,Choice,Button,Color}
 ```
 
 **Launcher nie importuje docka** (dock importuje launcher dla przycisku
@@ -493,6 +500,43 @@ i przeżywają jej przeładowanie.
 - Zrzut: `ld.item.contentItem.children[0]` (FocusScope). W oknie jest osobny
   prostokąt tła, bo bez niego zrzut wychodzi przezroczysty. W sondzie przestaw
   `Settings.configDir` na katalog roboczy, żeby `set` nie pisał prawdziwego pliku.
+
+### Strona „Wyspa” (`PluSettings/IslandConfigService`)
+
+Edytuje `~/.config/PluDynamicIsland/config.jsonc`. Plik należy do wyspy: ona go
+tworzy z `config.default.jsonc`, czyta na żywo (zmiana działa od razu) i waliduje.
+Domyślne i listę opcji bierzemy z tego samego `config.default.jsonc` w
+`Settings.islandPath` — bez kopii po naszej stronie.
+
+- **Zapis punktowy.** Plik to JSONC z komentarzami pisanymi ręcznie, więc
+  `set(ścieżka, wartość)` podmienia w tekście tylko zakres wartości jednego
+  klucza, a brakujący klucz dopisuje na końcu swojego obiektu, w osobnym
+  wierszu za komentarzem poprzedniego (wstawiony zaraz po wartości przejąłby
+  jej komentarz). Parser zwraca drzewo z pozycjami (`valueStart/valueEnd`).
+  Sprawdzone sondą: cztery zmiany = cztery zmienione linie w `diff`, komentarze
+  na miejscu; przypadki brzegowe (brak przecinka, pusty obiekt, brak sekcji,
+  klucz innego typu) dają poprawny JSONC.
+- **Błąd składni w pliku blokuje zapis** (`writable`) i pokazuje baner z linią.
+  Punktowa podmiana w zepsutym pliku mogłaby go dobić; wyspa i tak działa wtedy
+  na ostatniej dobrej wersji.
+- Brak pliku (wyspa jeszcze nie startowała): pierwszy zapis zaczyna od tekstu
+  szablonu, jak zrobiłaby to wyspa.
+- Strona pokazuje tylko to, co da się wybrać z listy. Wartość spoza listy
+  (wpisana ręcznie) dochodzi do niej, zamiast pokazać „—” (`numbers()`).
+  Zakresy i dozwolone wartości pilnuje wyspa — listy tutaj są w ich granicach.
+- **Reset.** „Zmienione” = w PLIKU stoi coś innego niż w domyślnych
+  (`isModified`), nie wartość po scaleniu — zła wartość przegrywa przy
+  scalaniu, ale dalej siedzi w pliku i reset ma ją usunąć. Reset wpisuje
+  domyślną w miejsce zmienionej (`setMany`, jeden zapis), zamiast kasować
+  klucz, więc plik zostaje kompletną listą opcji. Strzałka w wierszu to
+  `SettingsRow.resettable/modified/reset()`; miejsce na nią jest
+  zarezerwowane, żeby opis nie przelewał się, gdy się pojawia. Karty dzielą
+  jeden klucz (`cards.hidden`), więc wiersz karty resetuje tylko swoją
+  obecność na liście. Reset całości pyta drugim kliknięciem. Sprawdzone
+  sondą: po czterech zmianach i resecie całości plik jest identyczny
+  z oryginałem (`diff` pusty).
+- Sonda: w kopii podmień `userPath` na plik w katalogu roboczym, inaczej
+  zapisy zmienią prawdziwą wyspę na żywo.
 
 ### Monitory (`PluSettings/MonitorService`)
 
