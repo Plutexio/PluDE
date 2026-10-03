@@ -16,7 +16,28 @@ Item {
     // automat jak w wyspie). Bez Variants: jeden dock, nie po jednym na ekran.
     Dock {}
     Launcher {}
-    Bar {}
+
+    // Pasek na każdym monitorze; pełny tylko na monitorze docka.
+    Variants {
+        model: Quickshell.screens
+
+        Bar {
+            required property var modelData
+            screen: modelData
+            primary: modelData === Settings.screen
+        }
+    }
+
+    // Na pozostałych monitorach mały dock z ich oknami (bez przypiętych).
+    Variants {
+        model: Quickshell.screens.filter(s => s !== Settings.screen)
+
+        MiniDock {
+            required property var modelData
+            screen: modelData
+        }
+    }
+
     Clipboard {}
     ShotToast {}
 

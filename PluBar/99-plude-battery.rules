@@ -1,0 +1,13 @@
+# PluDE: limit ładowania baterii z paska (PluBar/BatteryLimit.qml) bez roota.
+#
+# Progi w /sys/class/power_supply/BAT*/ należą do roota (644). Ta reguła daje
+# grupie wheel zapis do nich przy każdym pojawieniu się baterii (start systemu).
+# charge_types jest tylko na niektórych sterownikach (Dell), brak pliku nie szkodzi.
+#
+# Instalacja (raz):
+#   sudo install -m 644 ~/PluDE/PluBar/99-plude-battery.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload
+#   sudo udevadm trigger --action=add --subsystem-match=power_supply
+
+ACTION=="add", SUBSYSTEM=="power_supply", ATTR{type}=="Battery", TEST=="charge_control_end_threshold", \
+    RUN+="/bin/sh -c 'cd /sys%p && for f in charge_control_start_threshold charge_control_end_threshold charge_types; do [ -e $$f ] && chgrp wheel $$f && chmod g+w $$f; done; true'"

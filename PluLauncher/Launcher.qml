@@ -34,7 +34,7 @@ PanelWindow {
     // Okno
     // ---------------------------------------------------------------
 
-    screen: Settings.screen
+    screen: LauncherService.screen || Settings.screen
 
     anchors {
         top: true

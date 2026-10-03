@@ -54,6 +54,15 @@ Singleton {
     // Wybrany wpis jest od razu wklejany do okna, z którego otwarto schowek.
     readonly property alias clipboardPaste: data.clipboardPaste
 
+    // ---- bateria ----
+    // Limit ładowania w %, ustawiany suwakiem pod trybami energii w pasku
+    // (BatteryLimit). 0 = nie ruszamy tego, co ustawił system.
+    readonly property alias batteryLimit: data.batteryLimit
+
+    // Plik wczytany (albo zapisany pierwszy raz). Wcześniej aliasy mają
+    // wartości domyślne, a nie te z pliku.
+    property bool loaded: false
+
     // Zmiana z okna ustawień. Zapis idzie sam (onAdapterUpdated), a
     // powiązania z aliasami wyżej przeliczają się od razu.
     function set(key, value) {
@@ -69,8 +78,10 @@ Singleton {
         watchChanges: true
         onFileChanged: reload()
         onAdapterUpdated: writeAdapter()
+        onLoaded: root.loaded = true
         onLoadFailed: error => {
             if (error === FileViewError.FileNotFound) writeAdapter();
+            root.loaded = true;
         }
 
         JsonAdapter {
@@ -87,6 +98,7 @@ Singleton {
             property bool screenshotEdit: false
             property int clipboardMax: 100
             property bool clipboardPaste: true
+            property int batteryLimit: 0
         }
     }
 

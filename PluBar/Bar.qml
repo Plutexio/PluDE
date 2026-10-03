@@ -6,6 +6,7 @@ import Quickshell.Widgets
 import Quickshell.Services.UPower
 import Quickshell.Services.SystemTray
 import qs.Common
+import qs.PluLauncher
 import qs.PluSettings
 
 // Pasek u góry ekranu: dwie pigułki po bokach, wyspa między nimi.
@@ -19,8 +20,15 @@ import qs.PluSettings
 //
 // Wi-Fi i Bluetooth nie mają tu własnych list: klik otwiera nakładkę wyspy
 // (IslandLink.toggleOverlay), gdzie są sieci, hasła i parowanie.
+//
+// Jeden pasek na monitor (Variants w Main.qml). Na monitorze docka
+// (primary) pełny, na pozostałych sama lewa pigułka: przycisk launchera
+// (dock z nim jest tylko na głównym) i obszary robocze TEGO monitora.
+// Kontrolki systemu i zasobnik są jedne, a wyspa i tak stoi tylko na głównym.
 PanelWindow {
     id: root
+
+    property bool primary: true
 
     // ---------------------------------------------------------------
     // Ustawienia
@@ -48,8 +56,6 @@ PanelWindow {
     // Okno
     // ---------------------------------------------------------------
 
-    screen: Settings.screen
-
     anchors {
         top: true
         left: true
@@ -70,10 +76,12 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-    mask: Region {
+    mask: primary ? bothPills : leftOnly
+    property Region bothPills: Region {
         Region { item: leftPill }
         Region { item: rightPill }
     }
+    property Region leftOnly: Region { item: leftPill }
 
     // ---------------------------------------------------------------
     // Kiedy pasek jest widoczny
@@ -82,7 +90,8 @@ PanelWindow {
     readonly property var hyprMonitor: Hyprland.monitorFor(root.screen)
     readonly property var workspace: hyprMonitor ? hyprMonitor.activeWorkspace : null
     readonly property bool fullscreen: workspace !== null && workspace.hasFullscreen
-    readonly property bool hiddenWithIsland: Settings.hideWithIsland && IslandLink.islandHidden
+    // Wyspa stoi tylko na głównym monitorze, więc tylko tam chowa pasek.
+    readonly property bool hiddenWithIsland: primary && Settings.hideWithIsland && IslandLink.islandHidden
     readonly property bool shown: !fullscreen && !hiddenWithIsland
 
     // Jedna wartość na pozycję i krycie obu pigułek (DESIGN.md: wszystko
@@ -93,7 +102,7 @@ PanelWindow {
         showAnim.stop();
         hideAnim.stop();
         if (shown) showAnim.start(); else hideAnim.start();
-        if (!shown) { menu.close(); volumePanel.visible = false; brightnessPanel.visible = false; }
+        if (!shown) { powerPanel.visible = false; volumePanel.visible = false; brightnessPanel.visible = false; }
     }
     Component.onCompleted: if (shown) showAnim.start()
 
@@ -109,7 +118,9 @@ PanelWindow {
     }
 
     readonly property real pillY: topMargin - (1 - open) * (barHeight + topMargin + 4)
-    readonly property int sideLimit: Math.floor((width - islandMaxWidth) / 2) - islandGap - edgeMargin
+    // Bez wyspy (monitor poboczny) pigułka ma całą szerokość.
+    readonly property int sideLimit: primary ? Math.floor((width - islandMaxWidth) / 2) - islandGap - edgeMargin
+                                             : width - edgeMargin * 2
 
     // ---------------------------------------------------------------
     // Podpowiedź
@@ -170,8 +181,9 @@ PanelWindow {
     // ---------------------------------------------------------------
 
     // { id: HyprlandWorkspace } dla zwykłych obszarów tego monitora. Repeater
-    // stoi na LICZBIE kropek, nie na tablicy: tablica tworzyłaby delegaty od
-    // nowa przy każdym nowym obszarze i przejście kropki nie miałoby czego animować.
+    // stoi na LICZBIE kropek (workspaceIds.length), nie na tablicy: tablica
+    // tworzyłaby delegaty od nowa przy każdym nowym obszarze i przejście
+    // kropki nie miałoby czego animować.
     readonly property var workspaceById: {
         const all = Hyprland.workspaces.values;
         const out = {};
@@ -183,11 +195,27 @@ PanelWindow {
         }
         return out;
     }
-    readonly property int workspaceCount: {
-        let n = workspaceMin;
-        for (const id in workspaceById) n = Math.max(n, parseInt(id));
-        if (workspace) n = Math.max(n, workspace.id);
-        return n;
+    // Obszary, które leżą na innym monitorze (zajęte przez inny pasek).
+    readonly property var foreignIds: {
+        const all = Hyprland.workspaces.values;
+        const out = {};
+        for (let i = 0; i < all.length; i++) {
+            const w = all[i];
+            if (w.id > 0 && hyprMonitor && w.monitor && w.monitor !== hyprMonitor) out[w.id] = true;
+        }
+        return out;
+    }
+    // Kropki: obszary tego monitora, a na głównym także wolne 1..workspaceMin
+    // (miejsca do przejścia). Obszary innego monitora pokazuje jego pasek,
+    // tu byłyby fałszywie puste.
+    readonly property var workspaceIds: {
+        const ids = [];
+        for (const id in workspaceById) ids.push(parseInt(id));
+        if (workspace && workspace.id > 0 && ids.indexOf(workspace.id) < 0) ids.push(workspace.id);
+        if (primary)
+            for (let i = 1; i <= workspaceMin; i++)
+                if (ids.indexOf(i) < 0 && !foreignIds[i]) ids.push(i);
+        return ids.sort((a, b) => a - b);
     }
 
     function focusWorkspace(target) {
@@ -221,6 +249,30 @@ PanelWindow {
             y: root.pillPadding
             height: root.controlSize
 
+            // ---- launcher (tylko poboczne monitory) ----
+            BarButton {
+                id: launcherButton
+                visible: !root.primary
+                bar: root
+                size: root.controlSize
+                shown: root.shown
+                delay: 0
+                active: LauncherService.open && LauncherService.screen === root.screen
+                tip: "Aplikacje"
+                hint: "SUPER+R otwiera na monitorze docka"
+                onClicked: { root.hideTip(); LauncherService.toggleOn(root.screen); }
+
+                // Siatka 3×3 kropek jak przycisk w docku.
+                Grid {
+                    columns: 3
+                    spacing: 2
+                    Repeater {
+                        model: 9
+                        Rectangle { width: 3; height: 3; radius: 1.5; color: Theme.text }
+                    }
+                }
+            }
+
             // ---- obszary robocze ----
             Item {
                 id: workspaces
@@ -246,13 +298,13 @@ PanelWindow {
                     anchors.centerIn: parent
 
                     Repeater {
-                        model: root.workspaceCount
+                        model: root.workspaceIds.length
 
                         Item {
                             id: slot
                             required property int index
 
-                            readonly property int wsId: index + 1
+                            readonly property int wsId: root.workspaceIds[index] || 0
                             readonly property var ws: root.workspaceById[wsId] || null
                             readonly property bool current: root.workspace !== null && root.workspace.id === wsId
                             readonly property int windows: ws ? ws.toplevels.values.length : 0
@@ -303,7 +355,7 @@ PanelWindow {
                 }
             }
 
-            // ---- zasobnik ----
+            // ---- zasobnik (tylko główny monitor) ----
             Rectangle {
                 visible: tray.count > 0
                 width: 9
@@ -319,7 +371,7 @@ PanelWindow {
 
             Repeater {
                 id: tray
-                model: SystemTray.items
+                model: root.primary ? SystemTray.items : null
 
                 BarButton {
                     id: trayButton
@@ -401,21 +453,18 @@ PanelWindow {
         [PowerProfile.Performance]: "Wydajność"
     })
 
-    function openProfileMenu(item) {
-        if (menu.recentlyClosed()) return;
+    readonly property var profileIcons: ({
+        [PowerProfile.PowerSaver]: "powerSaver",
+        [PowerProfile.Balanced]: "balanced",
+        [PowerProfile.Performance]: "performance"
+    })
+
+    // Tryby energii, a pod nimi limit ładowania. sysfs nie zgłasza zmian,
+    // więc limit czytamy przy każdym otwarciu.
+    function openPowerPanel(item) {
+        BatteryLimit.refresh();
         const p = below(item);
-        const list = [{ header: "Tryb energii" }];
-        const all = [PowerProfile.PowerSaver, PowerProfile.Balanced, PowerProfile.Performance];
-        for (let i = 0; i < all.length; i++) {
-            const prof = all[i];
-            if (prof === PowerProfile.Performance && !PowerProfiles.hasPerformanceProfile) continue;
-            list.push({
-                text: root.profileNames[prof],
-                checked: PowerProfiles.profile === prof,
-                run: () => PowerProfiles.profile = prof
-            });
-        }
-        menu.openAt(root, p.x, p.y, list);
+        powerPanel.toggleAt(root, p.x, p.y);
     }
 
     // Sieć / Bluetooth: wyspa żyje → jej nakładka, nie żyje → terminal.
@@ -427,6 +476,7 @@ PanelWindow {
     ClippingRectangle {
         id: rightPill
 
+        visible: root.primary
         x: root.width - root.edgeMargin - width
         y: root.pillY
         opacity: Math.min(1, root.open)
@@ -548,14 +598,14 @@ PanelWindow {
                 size: root.controlSize
                 shown: root.shown
                 delay: 5 * root.appearStagger
-                active: menu.visible
+                active: powerPanel.visible
                 icon: PowerProfiles.profile === PowerProfile.PowerSaver ? "powerSaver"
                     : PowerProfiles.profile === PowerProfile.Performance ? "performance" : "balanced"
                 iconColor: PowerProfiles.profile === PowerProfile.PowerSaver ? Theme.success
                     : PowerProfiles.profile === PowerProfile.Performance ? Theme.warning : Theme.text
                 tip: "Tryb energii: " + (root.profileNames[PowerProfiles.profile] || "?")
                 hint: "klik: zmień"
-                onClicked: { root.hideTip(); root.openProfileMenu(profile); }
+                onClicked: { root.hideTip(); root.openPowerPanel(profile); }
             }
 
             BarButton {
@@ -568,8 +618,10 @@ PanelWindow {
                 label: root.hasBattery ? root.pct(root.battery.percentage) : ""
                 labelColor: batteryFill.color === Theme.danger ? Theme.danger : Theme.text
                 tip: "Bateria " + label + (root.batteryState !== "" ? " · " + root.batteryState : "")
-                hint: "klik: tryb energii"
-                onClicked: { root.hideTip(); root.openProfileMenu(batteryButton); }
+                     + (BatteryLimit.limit > 0 && BatteryLimit.limit < BatteryLimit.maximum
+                        ? " · limit " + BatteryLimit.limit + "%" : "")
+                hint: "klik: tryb energii i limit ładowania"
+                onClicked: { root.hideTip(); root.openPowerPanel(batteryButton); }
 
                 // Bateria jak w iOS: obrys, wypełnienie wg poziomu, nóżka.
                 Item {
@@ -685,10 +737,49 @@ PanelWindow {
         }
     }
 
-    PopupMenu {
-        id: menu
-        above: false
-        menuWidth: 220
+    SliderPanel {
+        id: powerPanel
+
+        readonly property int span: BatteryLimit.maximum - BatteryLimit.minimum
+        readonly property int limit: BatteryLimit.limit < 0 ? BatteryLimit.maximum : BatteryLimit.limit
+        readonly property bool unlimited: limit >= BatteryLimit.maximum
+
+        entriesFirst: true
+        entries: {
+            const out = [{ header: "Tryb energii" }];
+            const all = [PowerProfile.PowerSaver, PowerProfile.Balanced, PowerProfile.Performance];
+            for (let i = 0; i < all.length; i++) {
+                const prof = all[i];
+                if (prof === PowerProfile.Performance && !PowerProfiles.hasPerformanceProfile) continue;
+                out.push({
+                    text: root.profileNames[prof],
+                    icon: root.profileIcons[prof],
+                    checked: PowerProfiles.profile === prof,
+                    run: () => PowerProfiles.profile = prof
+                });
+            }
+            return out;
+        }
+
+        sliderVisible: BatteryLimit.supported
+        sliderEnabled: BatteryLimit.writable
+        title: "Limit ładowania"
+        icon: "bolt"
+        iconColor: unlimited ? Theme.textDim : Theme.success
+        value: (limit - BatteryLimit.minimum) / span
+        snaps: span / BatteryLimit.step + 1
+        valueText: unlimited ? "bez limitu" : limit + "%"
+        note: !BatteryLimit.writable
+                ? "Brak uprawnień do zapisu progu. Jednorazowo: reguła udev z PluBar/99-plude-battery.rules."
+            : BatteryLimit.error !== "" ? BatteryLimit.error
+            : (unlimited ? "Ładuje do pełna"
+                         : "Ładuje do " + limit + "%, wznawia poniżej " + (limit - BatteryLimit.hysteresis) + "%")
+              + (BatteryLimit.chargeType !== "" && BatteryLimit.chargeType !== "Custom"
+                 && BatteryLimit.chargeType !== "Standard" ? " · tryb " + BatteryLimit.chargeType : "")
+        noteColor: !BatteryLimit.writable || BatteryLimit.error !== "" ? Theme.warning : Theme.textFaint
+
+        onMoved: v => BatteryLimit.set(BatteryLimit.minimum + v * span)
+        onIconClicked: if (BatteryLimit.writable) BatteryLimit.toggle()
     }
 
     SliderPanel {

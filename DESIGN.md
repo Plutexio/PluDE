@@ -152,8 +152,17 @@ Zasady:
 
 ### hyprlock, `~/.config/hypr/hyprlock.conf`
 
-- Rozmiary, czcionki i pozycje są w **pikselach fizycznych**: przy skali
-  2 wszystko ×2 względem wartości logicznych.
+- hyprlock nie mnoży przez skalę monitora: rozmiary, czcionki i pozycje są
+  w **pikselach fizycznych**. Dlatego widżety są w szablonie
+  `hyprlock-widgets.conf` w px **logicznych** (`{{ N * $s }}`, `$mon`),
+  a `plude-lock.sh` przy każdej blokadzie przepisuje go raz na monitor
+  (nazwa, skala, zaokrąglenie) do `plude-lock-monitors.conf`, który
+  dołącza `hyprlock.conf`. Blokować zawsze przez skrypt (hypridle,
+  SUPER+L, wlogout). Zaokrągla skrypt, bo hyprlang przy skali 1,5 daje
+  `112.5` i hyprlock taki rozmiar odrzuca.
+- Podgląd bez blokowania ekranu: zagnieżdżony `Hyprland -c <lua>` na
+  obszarze specjalnym, atrapy `hyprctl -i 1 output create headless`,
+  potem `WAYLAND_DISPLAY=wayland-2 hyprlock -c …` i `grim -o`.
 - `#` w wartościach pisze się `##` (np. kolory w znacznikach Pango).
 - Locale systemu to `C.UTF-8` (brak `pl_PL`): polską datę daje
   `plude-lock-date.sh`.
@@ -167,6 +176,6 @@ Zmieniasz paletę lub czasy → popraw też:
 - `~/PluDynamicIsland` (wyspa, źródło oryginałów),
 - `~/PluDE/Common/Theme.qml`,
 - `~/.config/wlogout/style.css`, `wheel.svg`, `icons/*.svg`,
-- `~/.config/hypr/hyprlock.conf`,
+- `~/.config/hypr/hyprlock.conf` (kolory) i `hyprlock-widgets.conf`,
 - `~/.config/swappy/config` (`custom_color` to akcent, czcionka),
 - `~/.config/hypr/hyprland.lua` (obramowanie okien, reguły warstw).

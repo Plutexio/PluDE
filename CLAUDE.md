@@ -15,7 +15,10 @@ wyspy z `~/PluDynamicIsland`. Czysty QML, bez kroku budowania i bez testów.
   aplikacji, ranking po częstości użycia. Otwierany `SUPER+R`, przyciskiem w docku i przez IPC.
 - **Pasek** (`PluBar/`): dwie pigułki u góry po bokach wyspy. Lewa: obszary
   robocze i zasobnik. Prawa: jasność, głośność, mikrofon, sieć, Bluetooth, tryb
-  energii, bateria, zasilanie. Klik w sieć lub BT otwiera nakładkę wyspy.
+  energii z limitem ładowania, bateria, zasilanie. Klik w sieć lub BT otwiera
+  nakładkę wyspy. Na pozostałych monitorach lewa pigułka z przyciskiem
+  launchera i obszarami (bez zasobnika), a na dole dock z launcherem i ich
+  oknami (`PluAppDock/MiniDock`).
 - **Ustawienia** (`PluSettings/`): zwykłe okno aplikacji ze stronami „Ogólne”
   (`settings.json`), „Monitory” i „Schowek i zrzuty”. Otwierane przez IPC,
   prawym klikiem na zasilaniu w pasku i wpisem „Ustawienia PluDE” w launcherze.
@@ -49,6 +52,9 @@ starcie (brak plików w `~/.config/plude/`) po jednym „Read … failed: File d
 exist” i „got operation finished from dropped operation” na plik. Pliki się wtedy
 zapisują i następny start jest czysty.
 
+Ekran blokady (hyprlock, poza repozytorium): `~/.config/hypr/plude-lock.sh`
+przelicza widżety na skalę każdego monitora, opis w `DESIGN.md`.
+
 Autostart i skróty są w `~/.config/hypr/hyprland.lua` (sekcje AUTOSTART, bindy
 pod R i PLUDE na końcu: reguły warstw `no_anim`; rozmycia pod launcherem celowo nie ma).
 Zależności spoza Quickshella: `wl-clipboard`, `grim`, `slurp`, `swappy`
@@ -78,16 +84,18 @@ i wysuwanie docka musi potwierdzić użytkownik.
 
 ## Architektura
 
-`shell.qml` → `Loader` (tylko Hyprland) → `Main.qml`: `Dock`, `Launcher`, `Bar`,
-`Clipboard`, `ShotToast`, `LazyLoader` z oknem ustawień, `IpcHandler` i `GlobalShortcut`. Moduły importuje się przez `import qs.Common` itd.
+`shell.qml` → `Loader` (tylko Hyprland) → `Main.qml`: `Dock`, `Launcher`,
+`Clipboard`, `ShotToast`, `Variants` z `Bar` (każdy monitor) i `MiniDock`
+(monitory bez docka), `LazyLoader` z oknem ustawień, `IpcHandler` i `GlobalShortcut`. Moduły importuje się przez `import qs.Common` itd.
 Singletony w podkatalogach działają **bez `qmldir`** (sprawdzone sondą), a pliki
 w tym samym katalogu widzą się nawzajem bez importu.
 
 ```
 Common/      Theme, Settings, Apps, Pins, IslandLink, PopupMenu, Icon
-PluAppDock/  Dock (okno), DockItem (delegat), DockService (model)
+PluAppDock/  Dock (okno), DockItem (delegat), DockService (model), MiniDock
 PluLauncher/ Launcher (okno), LauncherService (stan, wyszukiwanie, częstość)
-PluBar/      Bar (okno), BarButton, SliderPanel, Audio, Brightness, Connectivity
+PluBar/      Bar (okno), BarButton, SliderPanel, Audio, Brightness, Connectivity,
+             BatteryLimit, 99-plude-battery.rules
 PluClipboard/  ClipboardService (historia, stan okna), Clipboard (okno), clip-store.sh
 PluScreenshot/ ScreenshotService (kolejność kroków), ShotToast (podgląd w rogu)
 PluSettings/ SettingsApp (stan okna), SettingsWindow, GeneralPage, MonitorsPage, CapturePage,
@@ -122,7 +130,7 @@ jeden odtwarzacz, a dock pokazuje znaczek przy każdym grającym.
 ### Pliki
 
 - `~/.config/plude/settings.json`: monitor, terminal, ścieżka wyspy,
-  `hideWithIsland`, `barReserve`, `screenshot*`, `clipboard*`. Pisze go okno ustawień (`Settings.set`), ale
+  `hideWithIsland`, `barReserve`, `screenshot*`, `clipboard*`, `batteryLimit`. Pisze go okno ustawień (`Settings.set`), ale
   można go dalej edytować ręcznie. Zmiany wchodzą na żywo.
 - `~/.config/plude/dock.json`: przypięte, pisze go program.
 - `~/.config/plude/launcher.json`: licznik i czas ostatniego uruchomienia.
@@ -272,6 +280,32 @@ z wyspy).
   na liczbie kropek, nie na tablicy, żeby nowy obszar nie tworzył delegatów od nowa.
 - Bluetooth włączany jak w wyspie: `rfkill unblock`, bo zablokowany adapter
   ignoruje `enabled = true`.
+- **Wiele monitorów**: `Bar` w `Variants`, `primary` = monitor docka
+  (`Settings.screen`). Poboczny: bez prawej pigułki i zasobnika, z przyciskiem
+  launchera (`LauncherService.toggleOn(screen)` otwiera launcher na tym
+  monitorze; skrót, IPC i dock zawsze na monitorze docka), pigułka na całą
+  szerokość (nie ma wyspy), nie chowa się z wyspą. Kropki to obszary TEGO monitora,
+  a na głównym dodatkowo wolne 1..`workspaceMin`. Obszary innego monitora
+  pomijamy, bo pokazywały się jako puste (id są wspólne dla monitorów).
+- **`MiniDock`**: launcher i okna z `Hyprland.toplevels` na zwykłych obszarach monitora,
+  grupy po kluczu z `DockService.keyForAppId`. Kropka jasna = bieżący obszar,
+  blada = inny obszar, akcent = fokus. Wymiary, chowanie i jedna `MouseArea` jak
+  w dużym docku, bez przypiętych, powiększania i przeciągania. Rząd: launcher
+  (otwiera launcher na tym monitorze) | separator | okna; bez okien sam launcher.
+  Przestrzeń nazw `plude-dock`.
+- **Limit ładowania** (`BatteryLimit`, suwak pod trybami energii w
+  `SliderPanel` z `entriesFirst` i `snaps`): zapis do
+  `charge_control_{start,end}_threshold` (start = koniec − 5, minimum Della;
+  na zasilaczu bateria stoi, więc po dobiciu do 80 trzyma ~79 i nie ładuje
+  do zejścia poniżej 75; zmierzone: „Not charging” przy 79), 100% = tryb
+  `Standard` w `charge_types`. Pliki są roota; zapis dla `wheel` daje
+  jednorazowa reguła `PluBar/99-plude-battery.rules` (instalacja w nagłówku).
+  UPower (GNOME) zna tylko stałe 75/80 i wpisuje je po starcie systemu,
+  więc przed zapisem wyłączamy jego próg (`EnableChargeThreshold false`,
+  polkit pozwala aktywnej sesji), a wartość trzymamy w `batteryLimit`
+  w `settings.json` i przywracamy przy starcie powłoki. Kolejność zapisu:
+  koniec musi zostać nad startem po każdym kroku (Dell odrzuca inaczej),
+  sprawdzone na atrapie katalogu z emulacją sterownika.
 
 ### Ikony
 

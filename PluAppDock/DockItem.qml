@@ -96,7 +96,8 @@ Item {
     }
     SequentialAnimation {
         id: disappearAnim
-        PauseAnimation { duration: item.disappearDelay }
+        // Usuwany delegat ma index −1 i opóźnienie wychodzi ujemne.
+        PauseAnimation { duration: Math.max(0, item.disappearDelay) }
         NumberAnimation {
             target: item; property: "appear"; to: 0
             duration: 240; easing.type: Easing.InBack; easing.overshoot: 2.2

@@ -21,10 +21,18 @@ Singleton {
     property int maxUsageBonus: 150
 
     property bool open: false
+    // Monitor launchera. Skrót, IPC i dock: monitor docka (null). Przycisk
+    // na pasku pobocznego monitora otwiera launcher u siebie.
+    property var screen: null
 
-    function toggle() { open = !open; }
-    function show() { open = true; }
+    function toggle() { if (open) hide(); else show(); }
+    function show() { screen = null; open = true; }
     function hide() { open = false; }
+    function toggleOn(s) {
+        if (open) { hide(); return; }
+        screen = s;
+        open = true;
+    }
 
     // ---- częstość użycia ----
 
