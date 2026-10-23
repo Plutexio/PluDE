@@ -5,7 +5,8 @@ import Quickshell.Widgets
 import qs.Common
 
 // Podgląd zrzutu w prawym dolnym rogu: miniatura i trzy akcje (edytuj,
-// pokaż w katalogu, usuń). Znika sam po hideMs, najechanie go zatrzymuje.
+// pokaż w katalogu, usuń), albo początek tekstu odczytanego ze zrzutu.
+// Znika sam po hideMs, najechanie go zatrzymuje.
 // Zastępstwo za wyspę: przy żywej wyspie zrzut i błąd zgłasza ona
 // (ScreenshotService.viaIsland), a to okno pokazuje tylko odliczanie
 // przed zrzutem z opóźnieniem.
@@ -23,6 +24,8 @@ PanelWindow {
     property int buttonSize: 30
     property int hideMs: 6000
     property int errorHideMs: 9000
+    // Tyle wierszy odczytanego tekstu mieści karta.
+    property int textLines: 4
 
     // ---------------------------------------------------------------
     // Okno
@@ -46,7 +49,7 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-    // "shot" (miniatura), "error" albo "countdown".
+    // "shot" (miniatura), "text" (odczytany tekst), "error" albo "countdown".
     property string view: "shot"
     property string path: ""
     property string message: ""
@@ -99,6 +102,11 @@ PanelWindow {
             root.path = path;
             root.copied = ScreenshotService.last ? ScreenshotService.last.copied : false;
             root.show("shot");
+        }
+
+        function onRecognized(text) {
+            root.message = text;
+            root.show("text");
         }
 
         function onFailed(reason) {
@@ -173,7 +181,7 @@ PanelWindow {
         width: root.cardWidth
         height: root.view === "shot" ? root.thumbHeight + root.buttonSize + 3 * root.padding
               : root.view === "countdown" ? 64
-              : Math.max(64, errorText.implicitHeight + 2 * 16)
+              : Math.max(64, noteText.implicitHeight + 2 * 16)
         radius: 20
         color: Theme.surface
         border.width: 1
@@ -185,7 +193,7 @@ PanelWindow {
             anchors.fill: parent
             hoverEnabled: true
             acceptedButtons: Qt.AllButtons
-            // Klik w odliczanie albo błąd zamyka (odliczanie: anuluje zrzut).
+            // Klik w odliczanie, tekst albo błąd zamyka (odliczanie: anuluje zrzut).
             onClicked: {
                 if (root.view === "shot") return;
                 if (root.view === "countdown") ScreenshotService.cancelCountdown();
@@ -318,29 +326,45 @@ PanelWindow {
             }
         }
 
-        // ---- błąd ----
+        // ---- błąd albo odczytany tekst ----
 
         Icon {
-            id: errorIcon
+            id: noteIcon
             x: 16
             anchors.verticalCenter: parent.verticalCenter
-            visible: root.view === "error"
-            kind: "warning"
+            visible: root.view === "error" || root.view === "text"
+            kind: root.view === "text" ? "text" : "warning"
             size: 20
-            color: Theme.danger
+            color: root.view === "text" ? Theme.accent : Theme.danger
         }
 
-        Text {
-            id: errorText
-            x: errorIcon.x + errorIcon.width + 12
+        Column {
+            id: noteText
+            x: noteIcon.x + noteIcon.width + 12
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width - x - 16
-            visible: root.view === "error"
-            text: root.message
-            textFormat: Text.PlainText
-            color: Theme.text
-            font.pixelSize: 13
-            wrapMode: Text.Wrap
+            visible: noteIcon.visible
+            spacing: 3
+
+            Text {
+                width: parent.width
+                visible: root.view === "text"
+                text: "Tekst skopiowany do schowka"
+                color: Theme.text
+                font.pixelSize: 13
+                elide: Text.ElideRight
+            }
+
+            Text {
+                width: parent.width
+                text: root.message
+                textFormat: Text.PlainText
+                color: root.view === "text" ? Theme.textDim : Theme.text
+                font.pixelSize: root.view === "text" ? 12 : 13
+                wrapMode: Text.Wrap
+                maximumLineCount: root.view === "text" ? root.textLines : 1000
+                elide: Text.ElideRight
+            }
         }
     }
 }

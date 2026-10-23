@@ -14,6 +14,27 @@ Column {
     // Narzędzia mogły zostać doinstalowane od startu powłoki.
     Component.onCompleted: ScreenshotService.checkTools()
 
+    // Nazwy najczęstszych języków tesseracta; reszta pokazuje się kodem.
+    readonly property var languageNames: ({
+        pol: "Polski", eng: "Angielski", deu: "Niemiecki", fra: "Francuski",
+        spa: "Hiszpański", ita: "Włoski", por: "Portugalski", nld: "Niderlandzki",
+        ces: "Czeski", slk: "Słowacki", ukr: "Ukraiński", rus: "Rosyjski",
+        bel: "Białoruski", lit: "Litewski", lav: "Łotewski", est: "Estoński",
+        swe: "Szwedzki", nor: "Norweski", dan: "Duński", fin: "Fiński",
+        hun: "Węgierski", ron: "Rumuński", bul: "Bułgarski", hrv: "Chorwacki",
+        srp: "Serbski", slv: "Słoweński", ell: "Grecki", tur: "Turecki",
+        jpn: "Japoński", kor: "Koreański", chi_sim: "Chiński uproszczony",
+        chi_tra: "Chiński tradycyjny", ara: "Arabski", heb: "Hebrajski"
+    })
+
+    // Włączenie dopisuje język na końcu (pierwszy zostaje główny), a
+    // wyłączenie ostatniego nie przechodzi: tesseract potrzebuje choć jednego.
+    function toggleLanguage(code) {
+        const current = ScreenshotService.ocrLanguages;
+        const next = current.indexOf(code) >= 0 ? current.filter(l => l !== code) : current.concat([code]);
+        if (next.length > 0) Settings.set("ocrLanguages", next.join("+"));
+    }
+
     // Plakietka skrótu (DESIGN.md: zaokrąglona 6, litera pogrubiona).
     component KeyCaps: Row {
         id: keys
@@ -159,6 +180,47 @@ Column {
                 checked: Settings.screenshotCursor
                 onToggled: Settings.set("screenshotCursor", !Settings.screenshotCursor)
             }
+        }
+    }
+
+    SettingsSection {
+        width: page.width
+        title: "Tekst ze zrzutu"
+
+        SettingsRow {
+            title: "Kopiuj tekst z obszaru"
+            description: ScreenshotService.ocrMissing
+                ? "Wymaga programu tesseract: sudo pacman -S tesseract tesseract-data-pol tesseract-data-eng"
+                : "Zaznacz obszar albo kliknij okno. Rozpoznany tekst trafia do schowka, obraz nie jest zapisywany."
+
+            KeyCaps { keys: ["Super", "Shift", "T"] }
+        }
+
+        Repeater {
+            model: ScreenshotService.ocrMissing ? [] : ScreenshotService.ocrInstalled
+
+            SettingsRow {
+                id: languageRow
+                required property string modelData
+                readonly property bool on: ScreenshotService.ocrLanguages.indexOf(modelData) >= 0
+
+                title: page.languageNames[modelData] ?? modelData
+                description: on && ScreenshotService.ocrLanguages[0] === modelData && ScreenshotService.ocrLanguages.length > 1
+                    ? "Główny język rozpoznawania." : ""
+
+                SettingsSwitch {
+                    checked: languageRow.on
+                    // Ostatniego języka nie da się wyłączyć.
+                    enabled: !(checked && ScreenshotService.ocrLanguages.length === 1)
+                    onToggled: page.toggleLanguage(languageRow.modelData)
+                }
+            }
+        }
+
+        SettingsRow {
+            visible: !ScreenshotService.ocrMissing
+            title: "Inne języki"
+            description: "Doinstaluj paczkę tesseract-data-<kod>, np. tesseract-data-deu, i otwórz tę stronę ponownie."
         }
     }
 

@@ -13,8 +13,10 @@ import Quickshell.Io
 // busctl-em). brightnessctl, którego używały klawisze w hyprland.lua, nie
 // jest zainstalowany.
 //
-// sysfs nie zgłasza zmian przez inotify, więc odczyt co pollMs. Zmiany
-// z paska widać od razu, bo wartość ustawiamy u siebie przed zapisem.
+// Odczyt co pollMs. Zmiany z paska widać od razu, bo wartość ustawiamy
+// u siebie przed zapisem. (Zapis przez logind daje jednak inotify
+// IN_MODIFY na `brightness` — zmierzone; z tego żyje zerknięcie jasności
+// w wyspie, hud_bridge.py.)
 // ---------------------------------------------------------------
 Singleton {
     id: root

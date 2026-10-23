@@ -27,7 +27,8 @@ wyspy z `~/PluDynamicIsland`. Czysty QML, bez kroku budowania i bez testów.
   `wl-clipboard`, panel jak launcher. `SUPER+SHIFT+V`, wpis „Schowek”, IPC.
 - **Zrzuty ekranu** (`PluScreenshot/`): `grim` + `slurp` + `swappy`, gotowy
   zrzut zgłasza wyspa (bez niej podgląd w rogu ekranu). `Print` (obszar albo okno), `SHIFT+Print` (ekran),
-  `SUPER+Print` (aktywne okno), wpis „Zrzut ekranu”, IPC.
+  `SUPER+Print` (aktywne okno), wpis „Zrzut ekranu”, IPC. Tekst z obszaru
+  do schowka (OCR, `tesseract`): `SUPER+SHIFT+T`, wpis „Tekst ze zrzutu”.
 
 Środowisko: Quickshell 0.3.1, Qt 6.11, **tylko Hyprland** (0.56, konfiguracja w Lua).
 Na innym kompozytorze `shell.qml` nie ładuje niczego i wypisuje jedną linię `console.info`.
@@ -42,7 +43,7 @@ qs ipc -p ~/PluDE call launcher toggle           # launcher z zewnątrz
 qs ipc -p ~/PluDE call bar brightnessStep 5      # jasność (klawisze w hyprland.lua)
 qs ipc -p ~/PluDE call settings openPage monitors  # okno ustawień (open / toggle / close)
 qs ipc -p ~/PluDE call clipboard toggle          # historia schowka (show / hide / clear)
-qs ipc -p ~/PluDE call screenshot region         # zrzut: region / window / screen / edit
+qs ipc -p ~/PluDE call screenshot region         # zrzut: region / window / screen / text / edit
 qs ipc -p ~/PluDE call screenshot delayed screen 3   # zrzut za 3 s, z odliczaniem
 hyprctl globalshortcuts                          # czy skróty quickshell:* się zarejestrowały
 hyprctl layers -j                                # przestrzenie nazw plude-dock / -launcher / -bar / -clipboard / -shot
@@ -58,7 +59,8 @@ przelicza widżety na skalę każdego monitora, opis w `DESIGN.md`.
 
 Autostart i skróty są w `~/.config/hypr/hyprland.lua` (sekcje AUTOSTART, bindy
 pod R i PLUDE na końcu: reguły warstw `no_anim`; rozmycia pod launcherem celowo nie ma).
-Zależności spoza Quickshella: `wl-clipboard`, `grim`, `slurp`, `swappy`
+Zależności spoza Quickshella: `wl-clipboard`, `grim`, `slurp`, `swappy`,
+`tesseract` z `tesseract-data-pol`/`-eng` (tylko OCR)
 (brak → komunikat w podglądzie zrzutu i na stronie ustawień, nic się nie wysypuje).
 
 ### Weryfikacja
@@ -126,6 +128,13 @@ i restartowała mostki. Rozmowa między procesami:
 - **dock → wyspa**: `qs -p <islandPath> ipc call island showNotifications <id>`.
 - **zrzuty → wyspa**: zwykłe powiadomienie (`notify-send`), wyspa jest demonem
   powiadomień. Akcje wracają przez IPC PluDE (patrz „Zrzuty ekranu”).
+- **zerknięcia**: `… call island glance <ikona> <tytuł> <wartość>`, krótki
+  komunikat w zwiniętej pigułce (tekst ze zrzutu). Wyspa bez tej funkcji
+  odpowiada „Function not found.” z kodem **0**, więc o wyniku mówi wyjście:
+  cokolwiek wypisane = zwykłe powiadomienie.
+- **jasność**: zerknięcie jasności przy klawiszach PluDE robi sama wyspa
+  (`hud_bridge.py`, inotify na sysfs). Zapis przez logind daje IN_MODIFY
+  (zmierzone), PluDE nic nie wysyła.
 - **pasek → wyspa**: `… call island toggleOverlay wifi|bluetooth` (nakładka
   Wi-Fi / BT; ta sama drugi raz ją zamyka). Martwa wyspa → `nmtui` /
   `bluetoothctl` w terminalu.
@@ -137,7 +146,7 @@ jeden odtwarzacz, a dock pokazuje znaczek przy każdym grającym.
 ### Pliki
 
 - `~/.config/plude/settings.json`: monitor, terminal, ścieżka wyspy,
-  `hideWithIsland`, `barReserve`, `screenshot*`, `clipboard*`, `batteryLimit`. Pisze go okno ustawień (`Settings.set`), ale
+  `hideWithIsland`, `barReserve`, `screenshot*`, `ocrLanguages`, `clipboard*`, `batteryLimit`. Pisze go okno ustawień (`Settings.set`), ale
   można go dalej edytować ręcznie. Zmiany wchodzą na żywo.
 - `~/.config/plude/dock.json`: przypięte, pisze go program.
 - `~/.config/plude/launcher.json`: licznik i czas ostatniego uruchomienia.
@@ -454,8 +463,22 @@ z wyspy).
   osobno (kradzież hovera). Kliknięcia w podglądzie i w akcje powiadomienia
   musi potwierdzić użytkownik.
 - Wpisy launchera mają `sleep 0.3` w `Exec`: launcher zamyka się 170 ms.
+- **Tekst ze zrzutu** (tryb `text`): to samo zaznaczenie co `region`, potem
+  `grim -l 0` do `runtimeDir/ocr.png`, `tesseract plik - -l pol+eng` i plik
+  znika. Tekst idzie do `wl-copy -- tekst` (z argumentu: bez doklejonego końca
+  linii), a przez to do historii schowka. Zgłasza go zerknięcie w wyspie
+  (pierwszy wiersz, `glance`), awaryjnie powiadomienie (początek tekstu,
+  `&<>` zamienione na encje, bo wyspa ma `bodyMarkupSupported`), a bez
+  wyspy `ShotToast` (widok `text`). Pusty wynik też idzie zerknięciem.
+- Języki OCR: `ocrLanguages` w `settings.json`, pierwszy główny.
+  `ocrLanguages` w usłudze to tylko zainstalowane z nich
+  (`tesseract --list-langs` przy `checkTools`), bo brakujący język to
+  błąd tesseracta (kod 4 skryptu). Zmierzone: OCR ekranu 4K ~2,6 s,
+  okna 1886×1013 przy skali 2 ~4 s; mały obszar to ułamek sekundy.
 - Sonda: narzędzia można rozpakować z paczek do katalogu roboczego
   (`pacman -Sp grim` → `curl` → `bsdtar`) i dodać do `PATH` sondy.
+  Tesseract tak samo, przez skrypt z `LD_LIBRARY_PATH` i `TESSDATA_PREFIX`;
+  slurp zastępuje `head -n 1` (bierze pierwsze pole ze stdin).
 
 ### Menu (`PopupMenu`)
 
@@ -521,6 +544,9 @@ Domyślne i listę opcji bierzemy z tego samego `config.default.jsonc` w
   na ostatniej dobrej wersji.
 - Brak pliku (wyspa jeszcze nie startowała): pierwszy zapis zaczyna od tekstu
   szablonu, jak zrobiłaby to wyspa.
+- Nowa opcja w `config.default.jsonc` wyspy nie pojawia się tu sama: lista
+  wierszy jest w `IslandPage`. Brakującą sekcję w pliku użytkownika `set`
+  dopisuje jako jednolinijkowy obiekt (sprawdzone sondą: `effects`, `glances`).
 - Strona pokazuje tylko to, co da się wybrać z listy. Wartość spoza listy
   (wpisana ręcznie) dochodzi do niej, zamiast pokazać „—” (`numbers()`).
   Zakresy i dozwolone wartości pilnuje wyspa — listy tutaj są w ich granicach.
@@ -591,7 +617,7 @@ sprawdza go bez klikania). Do Hyprlanda idzie on dopiero po „Zastosuj”, a po
 ### Hyprland w Lua
 
 - Skróty globalne: `hl.dsp.global("quickshell:launcherToggle")`, tak samo
-  `clipboardToggle`, `screenshotRegion`, `screenshotScreen`, `screenshotWindow`. Sprawdzone przez
+  `clipboardToggle`, `screenshotRegion`, `screenshotScreen`, `screenshotWindow`, `screenshotText`. Sprawdzone przez
   `hyprctl dispatch 'hl.dsp.global("…")'`: warstwa `plude-launcher` się pojawia.
 - Reguła warstwy: `hl.layer_rule({ name, match = { namespace = "^…$" }, … })`.
 - `Hyprland.usingLua` = true. Stuby API: `/usr/share/hypr/stubs/hl.meta.lua`.

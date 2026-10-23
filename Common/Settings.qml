@@ -49,6 +49,9 @@ Singleton {
     readonly property alias screenshotCopy: data.screenshotCopy
     // Po zrzucie od razu edytor (swappy) zamiast podglądu w rogu.
     readonly property alias screenshotEdit: data.screenshotEdit
+    // Języki rozpoznawania tekstu ze zrzutu, jak w `tesseract -l` (pol+eng).
+    // Pierwszy jest główny.
+    readonly property alias ocrLanguages: data.ocrLanguages
     // Ile wpisów historii schowka zostaje (przypięte się nie liczą).
     readonly property alias clipboardMax: data.clipboardMax
     // Wybrany wpis jest od razu wklejany do okna, z którego otwarto schowek.
@@ -96,6 +99,7 @@ Singleton {
             property bool screenshotCursor: false
             property bool screenshotCopy: true
             property bool screenshotEdit: false
+            property string ocrLanguages: "pol+eng"
             property int clipboardMax: 100
             property bool clipboardPaste: true
             property int batteryLimit: 0

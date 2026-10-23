@@ -92,12 +92,14 @@ Item {
 
     //   qs -p ~/PluDE ipc call screenshot region
     //   qs -p ~/PluDE ipc call screenshot delayed screen 3
+    //   qs -p ~/PluDE ipc call screenshot text       (tekst z obszaru do schowka)
     IpcHandler {
         target: "screenshot"
 
         function region(): void { ScreenshotService.capture("region"); }
         function window(): void { ScreenshotService.capture("window"); }
         function screen(): void { ScreenshotService.capture("screen"); }
+        function text(): void { ScreenshotService.capture("text"); }
         function delayed(mode: string, seconds: int): void { ScreenshotService.delayed(mode, seconds); }
         // Akcja z powiadomienia o zrzucie w wyspie: edit / folder / delete.
         function act(action: string, path: string): void { ScreenshotService.act(action, path); }
@@ -147,5 +149,13 @@ Item {
         description: "Zrzut aktywnego okna"
 
         onPressed: ScreenshotService.capture("window")
+    }
+
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "screenshotText"
+        description: "Tekst z zaznaczonego obszaru do schowka (OCR)"
+
+        onPressed: ScreenshotService.capture("text")
     }
 }

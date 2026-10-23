@@ -60,6 +60,21 @@ Column {
         }
     }
 
+    // ---- wiersz z jednym przełącznikiem ----
+    component SwitchRow: IslandRow {
+        id: switchRow
+        property string key: ""
+        // Wyłączony, gdy zależy od innego przełącznika, który jest wyłączony.
+        property bool active: true
+        paths: [key]
+
+        SettingsSwitch {
+            enabled: page.editable && switchRow.active
+            checked: page.v(switchRow.key, true)
+            onToggled: page.set(switchRow.key, !checked)
+        }
+    }
+
     // ---- wiersz z resetem do domyślnych ----
     // `paths` to klucze, które wiersz ustawia; strzałka resetu pokazuje się,
     // gdy którykolwiek z nich różni się w pliku od domyślnego.
@@ -233,6 +248,12 @@ Column {
                 onPicked: x => page.set("general.locale", x)
             }
         }
+
+        SwitchRow {
+            key: "updates.check"
+            title: "Sprawdzaj aktualizacje"
+            description: "Przy starcie wyspa sprawdza GitHuba i pyta o nowe commity. Aktualizuje tylko czyste repozytorium, fast-forwardem."
+        }
     }
 
     SettingsSection {
@@ -289,6 +310,13 @@ Column {
             title: "Połączenie AirPodsów"
             TimedSwitch { enabledKey: "expand.onAirPods"; durationKey: "expand.airPodsMs" }
         }
+
+        IslandRow {
+            paths: ["expand.onTimer", "expand.timerMs"]
+            title: "Dzwoniący minutnik"
+            description: "Karta zegara z minutnikiem KClock, który właśnie się skończył."
+            TimedSwitch { enabledKey: "expand.onTimer"; durationKey: "expand.timerMs"; durations: [4000, 8000, 15000, 30000] }
+        }
     }
 
     SettingsSection {
@@ -337,6 +365,12 @@ Column {
                 placeholder: "dddd, d MMMM"
                 onCommitted: t => { if (t.trim() !== "") page.set("clock.dateFormat", t.trim()); }
             }
+        }
+
+        SwitchRow {
+            key: "clock.timers"
+            title: "Minutniki KClock"
+            description: "Lista minutników na karcie zegara (start, pauza, reset). Nowe dodaje się w KClock."
         }
     }
 
@@ -549,6 +583,105 @@ Column {
                 onToggled: page.set("pills.screencast", !checked)
             }
         }
+
+        SwitchRow {
+            key: "pills.timer"
+            title: "Pigułka minutnika"
+            description: "Odliczanie minutnika KClock obok wyspy."
+        }
+
+        SwitchRow {
+            key: "equalizer.autoHeadroom"
+            title: "Zapas w korektorze"
+            description: "Korektor (klik w widmo na karcie muzyki) ścisza wejście o największe podbicie, żeby bas nie przesterowywał."
+        }
+    }
+
+    SettingsSection {
+        width: page.width
+        title: "Zerknięcia"
+
+        SwitchRow {
+            key: "glances.brightness"
+            title: "Jasność ekranu"
+            description: "Klawisze i suwak w pasku PluDE pokazują na chwilę poziom w zwiniętej pigułce."
+        }
+
+        SwitchRow { key: "glances.capsLock"; title: "Caps Lock" }
+
+        SwitchRow {
+            key: "glances.capsIndicator"
+            title: "Stała ikonka Caps Locka"
+            description: "W pigułce, póki Caps Lock jest włączony."
+        }
+
+        SwitchRow { key: "glances.numLock"; title: "Num Lock" }
+
+        IslandRow {
+            paths: ["glances.hudMs"]
+            title: "Czas jasności i klawiszy"
+
+            SettingsChoice {
+                width: 96
+                enabled: page.editable
+                model: page.numbers([800, 1400, 2000, 3000], page.v("glances.hudMs"), page.ms)
+                value: page.v("glances.hudMs")
+                onPicked: x => page.set("glances.hudMs", x)
+            }
+        }
+
+        IslandRow {
+            paths: ["glances.commandDone", "glances.commandMs"]
+            title: "Koniec długiej komendy"
+            description: "Wymaga w ~/.zshrc: source " + Settings.islandPathRaw + "/integrations/island.zsh"
+            TimedSwitch { enabledKey: "glances.commandDone"; durationKey: "glances.commandMs"; durations: [2000, 4000, 8000, 15000] }
+        }
+
+        IslandRow {
+            paths: ["glances.ipcMs"]
+            title: "Komunikaty z PluDE i skryptów"
+            description: "Np. tekst ze zrzutu skopiowany do schowka."
+
+            SettingsChoice {
+                width: 96
+                enabled: page.editable
+                model: page.numbers([2000, 3000, 4500, 6000], page.v("glances.ipcMs"), page.ms)
+                value: page.v("glances.ipcMs")
+                onPicked: x => page.set("glances.ipcMs", x)
+            }
+        }
+    }
+
+    SettingsSection {
+        width: page.width
+        title: "Prywatność"
+
+        SwitchRow {
+            key: "privacy.dot"
+            title: "Kropka w pigułce"
+            description: "Pomarańczowa, gdy aplikacja nagrywa mikrofon, zielona przy kamerze."
+        }
+
+        IslandRow {
+            paths: ["privacy.glance", "privacy.glanceMs"]
+            title: "Nazwa aplikacji na starcie"
+            description: "Zerknięcie, kto właśnie włączył mikrofon albo kamerę. Pomijane aplikacje są w pliku (privacy.ignoredApps)."
+            TimedSwitch { enabledKey: "privacy.glance"; durationKey: "privacy.glanceMs"; durations: [1500, 2500, 4000, 6000] }
+        }
+    }
+
+    SettingsSection {
+        width: page.width
+        title: "Efekty"
+
+        SwitchRow { key: "effects.glassEdge"; title: "Szklana krawędź"; description: "Ramka wyspy jaśniejsza u góry." }
+        SwitchRow { key: "effects.artGlow"; title: "Poświata okładki"; description: "Rozmyta okładka pod kartą muzyki." }
+        SwitchRow { key: "effects.ripple"; title: "Fala"; description: "Przy powiadomieniu, AirPodsach, minutniku, ładowarce i wejściu na kanał." }
+        SwitchRow { key: "effects.liquidPills"; title: "Płynne pigułki"; description: "Pigułki rozmowy, udostępniania i minutnika wypływają z wyspy jak kropla." }
+        SwitchRow { key: "effects.carouselDepth"; title: "Głębia karuzeli"; description: "Przewijane karty oddalają się i przygasają." }
+        SwitchRow { key: "effects.cascade"; title: "Kaskada"; description: "Treść karty wpływa po kolei." }
+        SwitchRow { key: "effects.trackChange"; title: "Zmiana utworu"; description: "Okładka się obraca, tytuł wjeżdża od dołu." }
+        SwitchRow { key: "effects.rollingClock"; title: "Przewijany zegar"; description: "Zmieniona cyfra przewija się jak w liczniku." }
     }
 
     SettingsSection {
