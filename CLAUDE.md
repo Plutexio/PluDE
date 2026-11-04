@@ -14,9 +14,9 @@ wyspy z `~/PluDynamicIsland`. Czysty QML, bez kroku budowania i bez testów.
 - **Launcher** (`PluLauncher/`): przyciemniony ekran z wyszukiwaniem i siatką
   aplikacji, ranking po częstości użycia. Otwierany `SUPER+R`, przyciskiem w docku i przez IPC.
 - **Pasek** (`PluBar/`): dwie pigułki u góry po bokach wyspy. Lewa: obszary
-  robocze i zasobnik. Prawa: jasność, głośność, mikrofon, sieć, Bluetooth, tryb
-  energii z limitem ładowania, bateria, zasilanie. Klik w sieć lub BT otwiera
-  nakładkę wyspy. Na pozostałych monitorach lewa pigułka z przyciskiem
+  robocze i zasobnik. Prawa: jasność, głośność, mikrofon, sieć, Bluetooth,
+  dyski wpinane (tylko z wpiętym), tryb energii z limitem ładowania, bateria,
+  zasilanie. Klik w sieć lub BT otwiera nakładkę wyspy. Na pozostałych monitorach lewa pigułka z przyciskiem
   launchera i obszarami (bez zasobnika), a na dole dock z launcherem i ich
   oknami (`PluAppDock/MiniDock`).
 - **Ustawienia** (`PluSettings/`): zwykłe okno aplikacji ze stronami „Ogólne”
@@ -45,6 +45,7 @@ qs ipc -p ~/PluDE call settings openPage monitors  # okno ustawień (open / togg
 qs ipc -p ~/PluDE call clipboard toggle          # historia schowka (show / hide / clear)
 qs ipc -p ~/PluDE call screenshot region         # zrzut: region / window / screen / text / edit
 qs ipc -p ~/PluDE call screenshot delayed screen 3   # zrzut za 3 s, z odliczaniem
+qs ipc -p ~/PluDE call drives list               # dyski wpinane (open <dev> / eject <dev> / ejectAll)
 hyprctl globalshortcuts                          # czy skróty quickshell:* się zarejestrowały
 hyprctl layers -j                                # przestrzenie nazw plude-dock / -launcher / -bar / -clipboard / -shot
 ```
@@ -103,7 +104,7 @@ Common/      Theme, Settings, Apps, Pins, IslandLink, PopupMenu, Icon
 PluAppDock/  Dock (okno), DockItem (delegat), DockService (model), MiniDock
 PluLauncher/ Launcher (okno), LauncherService (stan, wyszukiwanie, częstość)
 PluBar/      Bar (okno), BarButton, SliderPanel, Audio, Brightness, Connectivity,
-             BatteryLimit, 99-plude-battery.rules
+             BatteryLimit, 99-plude-battery.rules, Drives, DrivesPanel
 PluClipboard/  ClipboardService (historia, stan okna), Clipboard (okno), clip-store.sh
 PluScreenshot/ ScreenshotService (kolejność kroków), ShotToast (podgląd w rogu)
 PluSettings/ SettingsApp (stan okna), SettingsWindow, GeneralPage, MonitorsPage, CapturePage,
@@ -146,7 +147,8 @@ jeden odtwarzacz, a dock pokazuje znaczek przy każdym grającym.
 ### Pliki
 
 - `~/.config/plude/settings.json`: monitor, terminal, ścieżka wyspy,
-  `hideWithIsland`, `barReserve`, `screenshot*`, `ocrLanguages`, `clipboard*`, `batteryLimit`. Pisze go okno ustawień (`Settings.set`), ale
+  `hideWithIsland`, `barReserve`, `screenshot*`, `ocrLanguages`, `clipboard*`, `batteryLimit`,
+  `drivesAnnounce`. Pisze go okno ustawień (`Settings.set`), ale
   można go dalej edytować ręcznie. Zmiany wchodzą na żywo.
 - `~/.config/plude/dock.json`: przypięte, pisze go program.
 - `~/.config/plude/launcher.json`: licznik i czas ostatniego uruchomienia.
@@ -322,6 +324,33 @@ z wyspy).
   w `settings.json` i przywracamy przy starcie powłoki. Kolejność zapisu:
   koniec musi zostać nad startem po każdym kroku (Dell odrzuca inaczej),
   sprawdzone na atrapie katalogu z emulacją sterownika.
+
+### Dyski wpinane (`PluBar/Drives`, `DrivesPanel`)
+
+- Stan z `lsblk -J -b`, zmiany z `gdbus monitor --system --dest
+  org.freedesktop.UDisks2` (linia na każdy sygnał, jedno montowanie to ~8,
+  stąd `settleMs`). Widzi też montowanie spoza PluDE (udisks obserwuje
+  mountinfo). udisks2 startuje przez D-Bus na żądanie (usługa systemd
+  wyłączona), więc nasłuch zaczyna `udisksctl status`.
+- Dysk = `type disk` z `hotplug` albo `rm` i rozmiarem > 0 (pusty czytnik
+  kart ma 0). Woluminy: partycje z systemem plików albo cały dysk bez
+  tablicy partycji; LUKS odblokowany pokazuje swój system plików.
+- Wszystko przez `udisksctl … --no-user-interaction`, bez roota: polkit
+  daje aktywnej sesji `filesystem-mount`, `power-off-drive`,
+  `encrypted-unlock` (sprawdzone na urządzeniu pętli). Montuje do
+  `/run/media/$USER/<etykieta>`, katalog otwiera `xdg-open`.
+- Wysunięcie: odmontuj wszystko, zamknij LUKS, `power-off`. Kod 3 skryptu =
+  zasilania nie dało się wyłączyć (czytnik kart, loop), ale wszystko
+  odmontowane: dysk zostaje w panelu jako „można bezpiecznie wyjąć”
+  (`released`). Wynik zgłasza zerknięcie wyspy (`check` / `warning`).
+- Zaszyfrowany: hasło w terminalu (`udisksctl unlock` pyta sam), potem
+  terminal woła `ipc call drives open <cleartext>`.
+- Sonda: `udisksctl loop-setup -f obraz` (bez hasła) + w kopii
+  `includeLoop: true`. Partycje w obrazie: `sfdisk`, potem `mkfs.ext4 -E
+  offset=…` na pliku (do `/dev/loop*` zwykły użytkownik nie pisze).
+  `DrivesPanel` to popup z `grabFocus`, który w sondzie się nie otwiera
+  („Failed to create grabbing popup”): do zrzutu w kopii zamień go na
+  `PanelWindow`.
 
 ### Ikony
 

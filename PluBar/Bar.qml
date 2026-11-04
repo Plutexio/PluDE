@@ -12,7 +12,7 @@ import qs.PluSettings
 // Pasek u góry ekranu: dwie pigułki po bokach, wyspa między nimi.
 //
 //   [obszary robocze · zasobnik]      ( wyspa )      [jasność · dźwięk · mikrofon ·
-//                                                     sieć · BT · energia · bateria · zasilanie]
+//                                                     sieć · BT · dyski · energia · bateria · zasilanie]
 //
 // Pigułki mają wysokość i odstęp od góry zwiniętej wyspy, więc stoją z nią
 // w jednej linii. Każda sięga najwyżej do sideLimit: rozwinięta wyspa
@@ -102,7 +102,10 @@ PanelWindow {
         showAnim.stop();
         hideAnim.stop();
         if (shown) showAnim.start(); else hideAnim.start();
-        if (!shown) { powerPanel.visible = false; volumePanel.visible = false; brightnessPanel.visible = false; }
+        if (!shown) {
+            powerPanel.visible = false; volumePanel.visible = false;
+            brightnessPanel.visible = false; drivesPanel.visible = false;
+        }
     }
     Component.onCompleted: if (shown) showAnim.start()
 
@@ -592,12 +595,39 @@ PanelWindow {
                 onRightClicked: { Connectivity.setBtEnabled(!Connectivity.btEnabled); root.poke(bluetooth); }
             }
 
+            // Tylko z wpiętym dyskiem. shown idzie za obecnością, żeby ikona
+            // wskakiwała przy podłączeniu jak reszta przy pokazaniu paska.
+            BarButton {
+                id: drives
+                visible: Drives.present
+                bar: root
+                size: root.controlSize
+                shown: root.shown && Drives.present
+                delay: 5 * root.appearStagger
+                active: drivesPanel.visible
+                icon: Drives.disks.length > 0 ? Drives.iconFor(Drives.disks[0]) : "usb"
+                iconColor: Drives.mountedCount > 0 ? Theme.text : Theme.textDim
+                dotColor: Drives.working ? Theme.accent : "transparent"
+                tip: Drives.disks.length === 1
+                        ? Drives.disks[0].name + " · " + (Drives.disks[0].released ? "można wyjąć"
+                            : Drives.mountedCount > 0 ? "zamontowany" : "niezamontowany")
+                        : Drives.plural(Drives.disks.length) + (Drives.mountedCount > 0
+                            ? " · zamontowane: " + Drives.mountedCount : "")
+                hint: "klik: otwórz i wysuń · prawy: wysuń" + (Drives.disks.length > 1 ? " wszystkie" : "")
+                onClicked: {
+                    root.hideTip();
+                    const p = root.below(drives);
+                    drivesPanel.toggleAt(root, p.x, p.y);
+                }
+                onRightClicked: { root.hideTip(); Drives.ejectAll(); }
+            }
+
             BarButton {
                 id: profile
                 bar: root
                 size: root.controlSize
                 shown: root.shown
-                delay: 5 * root.appearStagger
+                delay: 6 * root.appearStagger
                 active: powerPanel.visible
                 icon: PowerProfiles.profile === PowerProfile.PowerSaver ? "powerSaver"
                     : PowerProfiles.profile === PowerProfile.Performance ? "performance" : "balanced"
@@ -614,7 +644,7 @@ PanelWindow {
                 bar: root
                 size: root.controlSize
                 shown: root.shown
-                delay: 6 * root.appearStagger
+                delay: 7 * root.appearStagger
                 label: root.hasBattery ? root.pct(root.battery.percentage) : ""
                 labelColor: batteryFill.color === Theme.danger ? Theme.danger : Theme.text
                 tip: "Bateria " + label + (root.batteryState !== "" ? " · " + root.batteryState : "")
@@ -674,7 +704,7 @@ PanelWindow {
                 bar: root
                 size: root.controlSize
                 shown: root.shown
-                delay: 7 * root.appearStagger
+                delay: 8 * root.appearStagger
                 icon: "power"
                 tip: "Zasilanie"
                 hint: "klik: wyloguj, uśpij, wyłącz · SUPER+M · prawy: ustawienia"
@@ -780,6 +810,10 @@ PanelWindow {
 
         onMoved: v => BatteryLimit.set(BatteryLimit.minimum + v * span)
         onIconClicked: if (BatteryLimit.writable) BatteryLimit.toggle()
+    }
+
+    DrivesPanel {
+        id: drivesPanel
     }
 
     SliderPanel {

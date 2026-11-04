@@ -63,6 +63,16 @@ Column {
                 onToggled: Settings.set("barReserve", !Settings.barReserve)
             }
         }
+
+        SettingsRow {
+            title: "Zerknięcie przy wpięciu dysku"
+            description: "Wyspa pokazuje nazwę i rozmiar wpiętego pendrive'a, karty albo dysku USB."
+
+            SettingsSwitch {
+                checked: Settings.drivesAnnounce
+                onToggled: Settings.set("drivesAnnounce", !Settings.drivesAnnounce)
+            }
+        }
     }
 
     SettingsSection {

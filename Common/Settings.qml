@@ -62,6 +62,10 @@ Singleton {
     // (BatteryLimit). 0 = nie ruszamy tego, co ustawił system.
     readonly property alias batteryLimit: data.batteryLimit
 
+    // ---- dyski wpinane ----
+    // Zerknięcie w wyspie przy wpięciu pendrive'a / dysku (PluBar/Drives).
+    readonly property alias drivesAnnounce: data.drivesAnnounce
+
     // Plik wczytany (albo zapisany pierwszy raz). Wcześniej aliasy mają
     // wartości domyślne, a nie te z pliku.
     property bool loaded: false
@@ -103,6 +107,7 @@ Singleton {
             property int clipboardMax: 100
             property bool clipboardPaste: true
             property int batteryLimit: 0
+            property bool drivesAnnounce: true
         }
     }
 

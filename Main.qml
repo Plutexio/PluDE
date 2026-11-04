@@ -109,6 +109,22 @@ Item {
         }
     }
 
+    // Dyski wpinane. open montuje (jeśli trzeba) i otwiera katalog; woła
+    // go też terminal po odblokowaniu zaszyfrowanego dysku.
+    //   qs -p ~/PluDE ipc call drives open /dev/sdb1
+    //   qs -p ~/PluDE ipc call drives ejectAll
+    IpcHandler {
+        target: "drives"
+
+        function open(device: string): void { Drives.openPath(device); }
+        function eject(device: string): void { Drives.ejectPath(device); }
+        function ejectAll(): void { Drives.ejectAll(); }
+        function list(): string {
+            return Drives.disks.map(d => d.path + "\t" + d.name + "\t"
+                + d.volumes.map(v => v.path + (v.mount !== "" ? "=" + v.mount : "")).join(" ")).join("\n");
+        }
+    }
+
     // Skróty globalne — klawisze przypisuje Hyprland (hyprland.lua):
     //   hl.bind(mainMod .. " + R", hl.dsp.global("quickshell:launcherToggle"))
     GlobalShortcut {
