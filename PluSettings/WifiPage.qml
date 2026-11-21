@@ -137,7 +137,7 @@ Column {
                 kind: WifiService.signalIcon(page.current ? page.current.signal : 0)
                 ghost: "wifi"
                 color: Theme.accent
-                ghostColor: Qt.rgba(1, 1, 1, 0.16)
+                ghostColor: Theme.alpha(Theme.text, 0.16)
             }
 
             Column {

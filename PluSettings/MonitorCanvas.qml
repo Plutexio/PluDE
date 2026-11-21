@@ -71,9 +71,9 @@ Item {
             radius: 8
             antialiasing: true
             color: selected ? Qt.tint(Theme.surface, Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.22))
-                : mouse.containsMouse ? Qt.tint(Theme.surface, Qt.rgba(1, 1, 1, 0.06)) : Theme.surface
+                : mouse.containsMouse ? Theme.mix(Theme.surface, Theme.text, 0.06) : Theme.surface
             border.width: selected || bad ? 2 : 1
-            border.color: bad ? Theme.danger : selected ? Theme.accent : Qt.rgba(1, 1, 1, 0.18)
+            border.color: bad ? Theme.danger : selected ? Theme.accent : Theme.alpha(Theme.text, 0.18)
             opacity: isMirror ? 0.85 : 1
 
             Behavior on color { ColorAnimation { duration: Theme.quickMs } }

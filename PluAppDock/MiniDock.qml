@@ -272,7 +272,7 @@ PanelWindow {
                         anchors.verticalCenterOffset: -3
                         width: 1
                         height: Math.round(root.iconSize * 0.7)
-                        color: Qt.rgba(1, 1, 1, 0.14)
+                        color: Theme.alpha(Theme.text, 0.14)
                     }
 
                     // Podświetlenie pod kursorem jak w DockItem.

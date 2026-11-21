@@ -36,6 +36,8 @@ Singleton {
         return null;
     }
     readonly property real wifiStrength: wifiNetwork ? wifiNetwork.signalStrength : 0
+    // Karta w trakcie łączenia (kreski w pasku zapalają się po kolei).
+    readonly property bool wifiConnecting: wifiDevice !== null && wifiDevice.state === ConnectionState.Connecting
     readonly property bool wiredConnected: wiredDevice !== null && wiredDevice.connected
 
     // Portal albo brak internetu przy połączonej sieci — kropka ostrzeżenia.

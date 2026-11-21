@@ -26,6 +26,9 @@ wyspy z `~/PluDynamicIsland`. Czysty QML, bez kroku budowania i bez testów.
   „Ustawienia PluDE” w launcherze.
 - **Schowek** (`PluClipboard/`): historia schowka (tekst i obrazy) na
   `wl-clipboard`, panel jak launcher. `SUPER+SHIFT+V`, wpis „Schowek”, IPC.
+- **Kolory z tapety** (`Common/Wallpaper`, `PaletteExport`): tapetą rządzi
+  skwd-wall, PluDE liczy z niej paletę matugenem i maluje nią siebie,
+  ramki okien Hyprlanda, hyprlocka i wlogouta. Wyspa na razie nie.
 - **Zrzuty ekranu** (`PluScreenshot/`): `grim` + `slurp` + `swappy`, gotowy
   zrzut zgłasza wyspa (bez niej podgląd w rogu ekranu). `Print` (obszar albo okno), `SHIFT+Print` (ekran),
   `SUPER+Print` (aktywne okno), wpis „Zrzut ekranu”, IPC. Tekst z obszaru
@@ -62,7 +65,8 @@ przelicza widżety na skalę każdego monitora, opis w `DESIGN.md`.
 
 Autostart i skróty są w `~/.config/hypr/hyprland.lua` (sekcje AUTOSTART, bindy
 pod R i PLUDE na końcu: reguły warstw `no_anim`; rozmycia pod launcherem celowo nie ma).
-Zależności spoza Quickshella: `wl-clipboard`, `grim`, `slurp`, `swappy`,
+Zależności spoza Quickshella: `skwd-wall-v2-bin` (AUR, demon
+`skwd-walld.service` włączony dla użytkownika), `matugen`, `wl-clipboard`, `grim`, `slurp`, `swappy`,
 `tesseract` z `tesseract-data-pol`/`-eng` (tylko OCR)
 (brak → komunikat w podglądzie zrzutu i na stronie ustawień, nic się nie wysypuje).
 
@@ -102,10 +106,12 @@ Singletony w podkatalogach działają **bez `qmldir`** (sprawdzone sondą), a pl
 w tym samym katalogu widzą się nawzajem bez importu.
 
 ```
-Common/      Theme, Settings, Apps, Pins, IslandLink, PopupMenu, Icon
+Common/      Theme, Settings, Apps, Pins, IslandLink, PopupMenu, Icon,
+             Wallpaper (paleta z tapety), PaletteExport, Ripple, SoftGlow,
+             GrowBody, AuroraDim, PanelFrame, Selection
 PluAppDock/  Dock (okno), DockItem (delegat), DockService (model), MiniDock
 PluLauncher/ Launcher (okno), LauncherService (stan, wyszukiwanie, częstość)
-PluBar/      Bar (okno), BarButton, SliderPanel, Audio, Brightness, Connectivity,
+PluBar/      Bar (okno), BarButton, SoundWaves, SliderPanel, Audio, Brightness, Connectivity,
              BatteryLimit, 99-plude-battery.rules, Drives, DrivesPanel, Vpn
 PluClipboard/  ClipboardService (historia, stan okna), Clipboard (okno), clip-store.sh
 PluScreenshot/ ScreenshotService (kolejność kroków), ShotToast (podgląd w rogu)
@@ -153,6 +159,8 @@ jeden odtwarzacz, a dock pokazuje znaczek przy każdym grającym.
   `hideWithIsland`, `barReserve`, `screenshot*`, `ocrLanguages`, `clipboard*`, `batteryLimit`,
   `drivesAnnounce`, `vpnLast` (pisze program). Pisze go okno ustawień (`Settings.set`), ale
   można go dalej edytować ręcznie. Zmiany wchodzą na żywo.
+- `~/.config/plude/palette.json`: tokeny palety z tapety (`format`,
+  `source`, `colors`), pisze `Wallpaper`. Kasujesz → przeliczy się.
 - `~/.config/plude/dock.json`: przypięte, pisze go program.
 - `~/.config/plude/launcher.json`: licznik i czas ostatniego uruchomienia.
 - `~/.config/plude/monitors.json`: reguły monitorów, pisze program. Z niego
@@ -164,6 +172,47 @@ jeden odtwarzacz, a dock pokazuje znaczek przy każdym grającym.
   Leży w tmpfs, bo historia powiadomień wyspy też znika z restartem.
 
 `FileView` sam tworzy brakujące katalogi przy zapisie (zmierzone).
+
+### Tapeta i paleta (`Common/Wallpaper`, `PaletteExport`)
+
+- Tapetę ustawia skwd-wall (Rust, AUR; picker `skwd-wall-v2` pod
+  `SUPER+W` w `hyprland.lua`, `skwd-helm ui toggle || skwd-wall-v2`, demon
+  `skwd-walld`). **Wymaga `vulkan-intel`**: bez niego Vulkan widzi tylko
+  NVIDIA, `skwd-wall-vk` rysuje na niej przejście tapety i Hyprland (na
+  Intelu) pada w Mesie ok. 17 s później (`dri_create_fence_fd` → abort,
+  dwa razy z rzędu). Z nim wybiera kartę kompozytora (`skwd-helm hw-probe`,
+  log `~/.cache/skwd-wall-v2/skwd-wall-vk.log`). My tylko słuchamy: `skwd-helm watch` (linia JSON na
+  zdarzenie, interesuje nas `skwd.wall.applied` z `path`, `output`,
+  `type`) i przy starcie `skwd-helm current --json`. Liczy się monitor
+  docka albo `output: "*"`. Kod 127 = brak skwd-helm, bez wznawiania.
+  skwd-wall pisze tylko do swoich katalogów (sprawdzone: nic w
+  konfiguracjach aplikacji), jego szablony matugena leżą nieużywane.
+- Kolory liczymy sami, nie bierzemy jego `scheme.json`: domyślny backend
+  skwd (iris) dał zieleń dla turkusowej tapety, matugen turkus.
+  `matugen image … --dry-run -j hex -t scheme-vibrant -m dark --prefer
+  saturation` (~0,12 s; bez `--prefer` przy kilku kandydatach pyta
+  w terminalu i kończy się błędem). Wideo i sceny WE: miniatura
+  `~/.cache/skwd-wall-v2/thumbs/<nazwa>.webp`.
+- Drugi akcent: drugi przebieg `matugen color hex <źródło obrócone o 36°>`
+  i jego primary 70. Tertiary bywa szary, obrót w HSL nie trzyma jasności
+  (DESIGN.md). Kolejny proces z `onExited` przez `Qt.callLater`.
+- `format` w `palette.json`: podbij przy zmianie sposobu liczenia, stary
+  plik przeliczy się przy starcie nawet dla tej samej tapety.
+- `Theme` wiąże tokeny z `Wallpaper.color(nazwa, base…)`, z `Behavior`
+  `ColorAnimation` (działa na właściwościach singletona, zmierzone).
+  `Wallpaper` czyta `Theme.base*` tylko w funkcji, nie w powiązaniu (pętla).
+- **Nazwa `Palette` jest zajęta** przez typ QtQuick („Property 'color' of
+  object QtQuick/Palette is not a function”). **Właściwość `onCoś`** to
+  dla QML uchwyt sygnału („Cannot assign a value to a signal”), stąd
+  `accentInk`, nie `onAccent`.
+- `PaletteExport` pisze pliki dla Hyprlanda, hyprlocka i wlogouta (lista
+  w DESIGN.md, „Gdzie idzie paleta”). FileView tylko do zapisu ma
+  `preload: false`, inaczej „Read … failed” przy braku pliku.
+  `hyprctl eval 'hl.config({ general = { col = { active_border = … } } })'`
+  zmienia ramki na żywo (sprawdzone `getoption`).
+- Sonda: w kopii przestaw ścieżkę `palette.json` i katalogi w
+  `PaletteExport`, a `hyprctl eval` wytnij, inaczej sonda przemaluje
+  prawdziwe ramki i pliki.
 
 ### Leniwe usługi Quickshella
 
@@ -282,6 +331,19 @@ z wyspy).
   wyłączane `barReserve: false` w `settings.json`. Schowany z wyspą pasek
   oddaje miejsce, pełny ekran nie zmienia strefy (okna na innych obszarach
   przeskakiwałyby przy każdym przełączeniu).
+- **Reakcje kontrolek** (`BarButton`): fala od kliknięcia (`Ripple`,
+  przycina ją pigułka, bo to ClippingRectangle), sprężyste puszczenie,
+  `kick()` / `shake()` wołane przez `Bar` przy zmianie stanu z dowolnego
+  źródła (`react`, dopiero po `reactReady`, żeby start nic nie odpalał).
+  `overlay` to warstwa nad ikoną bez skalowania (fale głośnika).
+  `x` przy `anchors.fill` nic nie robi: drgania przez `Translate`.
+- **Znacznik obszaru** to jeden prostokąt nad kropkami, krawędzie
+  animowane osobno (przód szybko, tył sprężyście). Pozycje z indeksu, nie
+  z delegatów, które same się animują.
+- **Panele** (`SliderPanel`, `DrivesPanel`) wyrastają z kontrolki
+  (`GrowBody`). Okno panelu jest większe o margines na cień, `mask` to samo
+  tło. Punkt startu: okno stoi środkiem pod kotwicą, dosunięte do krawędzi
+  ekranu (`originX` w `toggleAt`, okno paska ma szerokość ekranu).
 - Tutaj MouseArea na każdej kontrolce jest w porządku: pasek się nie chowa,
   więc kradzież hovera niczego nie zwija. Podpowiedź jest jedna, w oknie
   paska; kontrolki zgłaszają najechanie przez `bar.noteHover`.
@@ -723,8 +785,9 @@ sprawdza go bez klikania). Do Hyprlanda idzie on dopiero po „Zastosuj”, a po
 Jak w wyspie: kod i komentarze po polsku, nazwy właściwości po angielsku.
 Komentarze tłumaczą „dlaczego”. Ustawienia jako nazwane właściwości na górze pliku.
 Wartości wyprowadzamy, zamiast je powielać. Cztery spacje, sekcje oddzielone
-blokiem myślników. Kolory i czasy animacji w `Common/Theme` są przepisane z wyspy:
-zmiana tutaj wymaga zmiany tam.
+blokiem myślników. Kolory idą z tapety; nowe miejsca biorą tokeny `Theme`
+(odcienie przez `Theme.mix`, tekst na pełnym kolorze przez `Theme.inkOn`),
+nigdy stałe hexy. Czasy animacji w `Theme` są przepisane z wyspy.
 
 Wygląd i ruch całego PluDE (paleta, krzywe, wzorce, pułapki GTK i hyprlocka
 przy przenoszeniu stylu poza QML): `DESIGN.md`.

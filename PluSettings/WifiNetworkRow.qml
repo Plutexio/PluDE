@@ -121,7 +121,7 @@ Item {
             kind: row.manual ? "wifi" : WifiService.signalIcon(row.network ? row.network.signal : 0)
             ghost: row.manual ? "" : "wifi"
             color: row.manual ? Theme.textDim : Theme.text
-            ghostColor: Qt.rgba(1, 1, 1, 0.16)
+            ghostColor: Theme.alpha(Theme.text, 0.16)
         }
 
         Column {

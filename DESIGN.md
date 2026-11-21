@@ -2,65 +2,88 @@
 
 Jak odtworzyć wygląd i ruch PluDE w nowym elemencie (Quickshell, GTK,
 hyprlock czy cokolwiek innego). Źródłem prawdy dla liczb jest
-`Common/Theme.qml`, przepisany z wyspy (`~/PluDynamicIsland`). Zmieniasz
-wartość tam → zmień ją w wyspie i w konfiguracjach wymienionych na końcu.
+`Common/Theme.qml`, a dla kolorów paleta z tapety (`Common/Wallpaper.qml`).
+Hyprland, hyprlock i wlogout dostają ją same (`Common/PaletteExport.qml`).
+Wyspa (`~/PluDynamicIsland`) na razie zostaje przy stałych kolorach.
 
 ## Charakter
 
-- **Ciemno, płasko, spokojnie.** Prawie czarne tła, jeden niebieski akcent,
-  reszta szarości. Kolor tylko tam, gdzie coś znaczy (stan, akcja, skrót).
-- **Sprężystość zamiast efekciarstwa.** Rzeczy wskakują z lekkim
-  przestrzałem i opadają. Ruch ma być wyraźny, ale krótki (do ~0,5 s).
-- **Nie „premium”.** Bez szklanych kart, wielkich cieni, cienkich
-  eleganckich krojów i napuszonych podpisów. Na ekranie blokady po
-  przeróbce najlepiej wypadł monospace, małe litery i sama treść bez karty.
-- **Pełne kolory, bez alfy na elementach.** Półprzezroczyste podświetlenia
-  prześwitują tłem i wyglądają tanio. Odcień akcentu to akcent zmieszany
-  z tłem pod spodem, policzony do pełnego koloru (tabela niżej).
-  Alfa zostaje tylko w przyciemnieniu ekranu i w obrysach.
+- **Ciemno, ale w kolorach tapety.** Paleta idzie z tapety (skwd-wall +
+  matugen, `Common/Wallpaper.qml`): akcent, drugi akcent i tła z jej
+  odcieniem. Zmiana tapety przemalowuje wszystko płynnie (`paletteMs`).
+  Bez palety zostaje dawny niebieski.
+- **Żywe, ale z sensem.** Ikony reagują na zmianę stanu, skąd by nie
+  przyszła (podskok przy włączeniu, kręcenie głową przy wyłączeniu, fale
+  przy głośności), klik puszcza falę, panele wyrastają z kontrolki.
+  Ciągłe animacje tylko tam, gdzie coś trwa (ładowanie, łączenie, niski
+  poziom baterii), nigdy „dla ozdoby” w tle.
+- **Sprężystość.** Rzeczy wskakują z przestrzałem i opadają. Ruch wyraźny,
+  ale krótki (do ~0,5 s).
+- **Poświata zamiast szkła.** Gradient akcent → drugi akcent na rzeczach
+  wybranych i aktywnych, miękkie cienie i poświaty (`SoftGlow`). Bez
+  rozmycia Hyprlanda pod pełnoekranowymi warstwami (30 fps na 4K).
+- **Pełne kolory na elementach.** Odcienie to kolor zmieszany z tłem pod
+  spodem (`Theme.mix`), nie alfa: półprzezroczyste prześwitują i wyglądają
+  tanio. Alfa zostaje w przyciemnieniu, obrysach i poświatach.
 - **Każdy element sam się tłumaczy.** Skróty klawiszowe widoczne przy
   przyciskach, krótka podpowiedź „enter … · esc …” na dole ekranów pełnych.
 
 ## Kolory
 
-| Token           | Wartość                  | Użycie                                   |
-|-----------------|--------------------------|------------------------------------------|
-| `surface`       | `#0a0a0c`                | tło paneli (dock, launcher, tarcza)      |
-| `surfaceRaised` | `#17171a`                | przyciski, pola, komórki na panelu       |
-| `border`        | `rgba(255,255,255,0.08)` | obrys paneli, 1 px                       |
-| `hover`         | `rgba(255,255,255,0.08)` | podświetlenie w QML                      |
-| `hoverStrong`   | `rgba(255,255,255,0.16)` | wciśnięcie w QML                         |
-| `text`          | `#f2f2f2`                | tekst główny                             |
-| `textDim`       | `#9a9aa2`                | podpisy, daty                            |
-| `textFaint`     | `#6a6a72`                | podpowiedzi, placeholdery                |
-| `accent`        | `#5b8cff`                | zaznaczenie, fokus, pojedyncze znaki     |
-| `danger`        | `#e5484d`                | wyłączenie, błąd, złe hasło              |
-| `warning`       | `#f0b232`                | restart, Caps Lock, klawisz esc          |
-| `success`       | `#38d47a`                | status „jest / działa” (kropka)          |
-| `discord`       | `#5865f2`                | tylko rzeczy od Discorda                 |
+### Z tapety (`palette.json`, tokeny `Theme`)
 
-Przyciemnienie ekranu pod pełnoekranowym elementem: **czarny 0.45**
-(w hyprlocku `brightness = 0.55`).
+Matugen `scheme-vibrant`, tryb ciemny. Tony z palet Material (0–100,
+jasność w HCT), nie role: role dawały pastelowy akcent.
 
-Obramowanie aktywnego okna Hyprlanda (`hyprland.lua`, `col.active_border`):
-gradient `rgb(100,0,180)` → `rgb(0,50,180)`, 22°. Używane też jako obwódka
-pola hasła w hyprlocku.
+| Token           | Skąd                                   | Użycie                                  |
+|-----------------|----------------------------------------|-----------------------------------------|
+| `surface`       | `surface_container_lowest`             | tło paneli, pigułek, docka              |
+| `surfaceRaised` | `surface_container_low`                | przyciski, pola, komórki                |
+| `surfacePressed`| `surface_container_high`               | wciśnięcie na `surfaceRaised`           |
+| `text`          | `on_surface`                           | tekst główny                            |
+| `textDim`       | neutral_variant 60                     | podpisy                                 |
+| `textFaint`     | neutral_variant 50                     | podpowiedzi, placeholdery               |
+| `accent`        | primary 70                             | zaznaczenie, fokus, wypełnienia         |
+| `accentBright`  | primary 80                             | tekst i ikona w akcencie, środek poświaty |
+| `accentDeep`    | primary 30                             | ciemne wypełnienie                      |
+| `accentInk`     | primary 10                             | tekst na pełnym akcencie                |
+| `accent2`       | primary 70 z `matugen color`, źródło obrócone o 36° | drugi koniec gradientów      |
+| `border`        | `text` 8%                              | obrys 1 px                              |
 
-### Pełne odcienie (akcent zmieszany z `surfaceRaised`)
+Drugi akcent to nie tertiary matugena (w `scheme-vibrant` bywa prawie
+szary) ani obrót w HSL (nie trzyma jasności: pomarańcz → jaskrawa
+limonka). Ciepłe odcienie obracamy ku różowi, resztę ku fioletowi, bo od
+pomarańczu naprzód wychodziła oliwka.
 
-Tam, gdzie nie ma alfy (GTK/CSS, hyprlock), zamiast `rgba(accent, x)`:
+`Theme.inkOn(kolor)`: tekst na pełnym kolorze (ciemny odcień na jasnym,
+biały na ciemnym). Akcent z palety jest jasny, biały tekst na nim ginie.
 
-| Co                        | Kolor     |
-|---------------------------|-----------|
-| obrys na `surfaceRaised`  | `#2a2a2c` |
-| obrys fokusu              | `#4f4f51` |
-| obrys na `surface`        | `#1c1c1f` |
-| accent 20% (najechanie)   | `#252e48` |
-| accent 34% (wciśnięcie)   | `#2e3f68` |
-| warning 20% / 34%         | `#42361f` / `#614c22` |
-| danger 22% / 36%          | `#442225` / `#61292c` |
+### Stałe
 
-Wzór: `kanał = tło + (kolor − tło) × procent`.
+| Token      | Wartość   | Użycie                                   |
+|------------|-----------|------------------------------------------|
+| `danger`   | `#e5484d` | wyłączenie, błąd, zasilanie w pasku      |
+| `warning`  | `#f0b232` | restart, Caps Lock, jasność w pasku      |
+| `success`  | `#38d47a` | status „jest / działa”, ładowanie        |
+| `discord`  | `#5865f2` | tylko rzeczy od Discorda                 |
+
+Bez palety (`base*` w `Theme`): tła `#0a0a0c` / `#17171a`, tekst
+`#f2f2f2`, akcent `#5b8cff`, drugi `#a46bff`. To samo dostają hyprlock
+i wlogout, dopóki PluDE nie policzy palety.
+
+Przyciemnienie pod pełnoekranowym elementem: **czarny 0.45**, a za
+panelem „zorza” (`AuroraDim`): plama akcentu u góry z lewej, drugiego
+akcentu u dołu z prawej.
+
+Obramowanie aktywnego okna Hyprlanda: gradient `accent` → `accent2`,
+22° (`plude-colors.lua`). To samo jest obwódką pola hasła w hyprlocku.
+
+### Pełne odcienie
+
+`Theme.mix(tło, kolor, t)` = `tło + (kolor − tło) × t`. Typowe:
+najechanie 0,1–0,13, otwarty panel / zaznaczone 0,2–0,22, wciśnięcie
+0,3. W GTK (wlogout) te same odcienie liczy `PaletteExport`
+(`accentSoft` 20%, `accentSoftStrong` 34%, `warningSoft`, `dangerSoft`).
 
 ## Kształt i typografia
 
@@ -68,7 +91,10 @@ Wzór: `kanał = tło + (kolor − tło) × procent`.
   wyspa **pełne** (wysokość 34), komórka launchera
   **18**, menu **16**, wiersz menu **10**, podpowiedź **13**. Okna Hyprlanda
   **10**. Okrągłe przyciski to pełne koła.
-- Obrys 1 px, `border`. Cieni praktycznie brak.
+- Obrys 1 px, `border`; na panelach i pigułkach lekko zabarwiony akcentem
+  (`mix(border, accent, 0.25)`), na dużych panelach w gradiencie
+  `accent → border → accent2` (`PanelFrame`). Miękki cień pod pigułkami
+  i panelami (`SoftGlow`).
 - Krój: domyślny bezszeryfowy (Noto Sans) w QML. Rozmiary: 16 pole
   wyszukiwania, 13 menu, 12 podpisy i podpowiedzi, 11 nagłówki menu,
   10 plakietki (pogrubione).
@@ -92,6 +118,13 @@ Wzór: `kanał = tło + (kolor − tło) × procent`.
 | najechanie / drobne zmiany  | 140 ms  | liniowo lub OutQuad (`quickMs`)     |
 | zanikanie                   | 180 ms  | (`fadeMs`)                          |
 | filtrowanie siatki          | 260 ms  | OutBack (wejście), OutCubic (przesunięcia) |
+| przejście palety            | 900 ms  | `ColorAnimation` na tokenach Theme  |
+| panel z kontrolki (pasek)   | 520 ms  | OutBack 1.25, najpierw na boki, potem w dół (`GrowBody`) |
+| fala po kliknięciu          | 560 ms  | OutCubic, zanik od połowy (`Ripple`) |
+| wciśnięcie kontrolki        | 90 / 460 ms | OutQuad w dół, OutBack 3.2 przy puszczeniu |
+| podskok (`kick`)            | 110 + 520 ms | do 1,32, potem OutBack 3      |
+| kręcenie głową (`shake`)    | ~350 ms | −3,5 / 3 / −2 / 1 / 0 px            |
+| znacznik obszaru roboczego  | 220 / 420 ms | przód OutCubic, tył po 60 ms OutBack 1.6 |
 
 Zasady:
 
@@ -115,8 +148,21 @@ Zasady:
 ## Wzorce elementów
 
 - **Panel pełnoekranowy** (launcher, schowek, koło wylogowania): przyciemniony
-  ekran 0.45, panel `surface` z obrysem `border` na środku, klik obok
-  zamyka, Esc zamyka, drugie wciśnięcie skrótu zamyka.
+  ekran 0.45 z zorzą (`AuroraDim`), panel `PanelFrame` (poświata akcentu,
+  obrys gradientem) na środku, klik obok zamyka, Esc zamyka, drugie
+  wciśnięcie skrótu zamyka.
+- **Zaznaczenie** w siatce i liście: `Selection`, gradient
+  `mix(surface, accent)` → `mix(surface, accent2)`, obrys `accentBright`
+  45%, poświata. Najechanie: `mix(surface, accent, 0.1)`.
+- **Kontrolka paska**: najechanie i otwarty panel to odcień `tint` (akcent;
+  jasność `warning`, zasilanie `danger`), ikona w `tintBright`. Klik puszcza
+  falę po pigułce. Zmiana stanu z dowolnego źródła: `kick()` przy
+  włączeniu, `shake()` przy wyłączeniu. Panel kontrolki wyrasta spod niej
+  (`GrowBody`).
+- **Ikony, które coś robią**: głośnik puszcza łuki (na zewnątrz głośniej,
+  do środka ciszej), słońce obraca się z jasnością, kreski Wi-Fi zapalają
+  się po kolei przy łączeniu, przez baterię przy ładowaniu przelatuje
+  błysk, przy niskim poziomie wypełnienie pulsuje.
 - **Przycisk / komórka**: `surfaceRaised`, obrys `border`, podpis `textDim`
   pod ikoną. Najechanie: odcień akcentu + obrys w pełnym akcencie + tekst
   `text` + ikona rośnie. Akcje nieodwracalne: restart w `warning`,
@@ -169,13 +215,20 @@ Zasady:
 - Wbudowanego `$TIME` nie da się pokolorować częściowo; zegar to `cmd`
   z `date` i znacznikami `<span>`.
 
-## Gdzie te wartości są przepisane
+## Gdzie idzie paleta
 
-Zmieniasz paletę lub czasy → popraw też:
+Pisze PluDE (`PaletteExport`) przy każdej nowej palecie i przy starcie:
 
-- `~/PluDynamicIsland` (wyspa, źródło oryginałów),
-- `~/PluDE/Common/Theme.qml`,
-- `~/.config/wlogout/style.css`, `wheel.svg`, `icons/*.svg`,
-- `~/.config/hypr/hyprlock.conf` (kolory) i `hyprlock-widgets.conf`,
-- `~/.config/swappy/config` (`custom_color` to akcent, czcionka),
-- `~/.config/hypr/hyprland.lua` (obramowanie okien, reguły warstw).
+- `~/.config/hypr/plude-colors.lua`: ramki okien (dofile w `hyprland.lua`
+  po bloku `general`; na żywo `hyprctl eval`),
+- `~/.config/hypr/plude-lock-colors.conf`: zmienne hyprlocka i `$nazwaHex`
+  dla `{{#nazwa}}` w `hyprlock-widgets.conf` (wkleja `plude-lock.sh`),
+- `~/.config/wlogout/plude-colors.css` (`@define-color`, `@import`
+  w `style.css`) i `wheel-plude.svg` (z szablonu `wheel.svg`).
+
+Ręcznie, przy zmianie stałych kolorów albo czasów:
+
+- `~/PluDynamicIsland` (wyspa),
+- `~/.config/wlogout/icons/*.svg` (obrys `#f2f2f2`),
+- `~/.config/swappy/config` (`custom_color` to dawny akcent, czcionka),
+- `~/.config/hypr/hyprland.lua` (reguły warstw, gradient domyślny bez PluDE).

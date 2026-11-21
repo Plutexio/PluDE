@@ -152,11 +152,13 @@ PanelWindow {
     // Tło: klik obok panelu zamyka
     // ---------------------------------------------------------------
 
-    Rectangle {
+    // Przyciemnienie z „zorzą” w kolorach tapety za panelem. Z reveal
+    // (przycięte do 1 w środku), żeby tło nie ciemniało przed panelem.
+    AuroraDim {
         anchors.fill: parent
-        // Z reveal (przycięte do 1 — OutBack przestrzeliwuje), żeby tło nie
-        // ciemniało przed pojawieniem się panelu.
-        color: Qt.rgba(0, 0, 0, root.dim * Math.min(1, root.reveal))
+        progress: root.reveal
+        dim: root.dim
+        panel: scope
 
         MouseArea {
             anchors.fill: parent
@@ -189,12 +191,10 @@ PanelWindow {
         // idzie w górę drzewa i trafia do nas także z kursorem w polu.
         Keys.onEscapePressed: LauncherService.hide()
 
-        Rectangle {
+        PanelFrame {
             anchors.fill: parent
             radius: 30
-            color: Theme.surface
-            border.width: 1
-            border.color: Theme.border
+            glow: Math.min(1, root.reveal)
 
             // Klik w samo tło panelu nie może przelecieć do przyciemnienia pod
             // spodem i zamknąć launchera.
@@ -213,7 +213,19 @@ PanelWindow {
             radius: 22
             color: Theme.surfaceRaised
             border.width: 1
-            border.color: search.activeFocus ? Qt.rgba(0.36, 0.55, 1, 0.5) : Theme.border
+            border.color: search.activeFocus ? Theme.accent : Theme.border
+            Behavior on border.color { ColorAnimation { duration: Theme.fadeMs } }
+
+            // Poświata pola z fokusem.
+            SoftGlow {
+                z: -1
+                anchors.fill: parent
+                radius: parent.radius
+                color: Theme.accent
+                blur: 18
+                strength: search.activeFocus ? 0.35 : 0
+                Behavior on strength { NumberAnimation { duration: Theme.fadeMs } }
+            }
 
             // Lupa z dwóch kształtów — bez zależności od motywu ikon.
             Item {
@@ -221,17 +233,21 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 16
                 height: 16
+                // W akcencie, kiedy coś wpisano.
+                readonly property color tone: search.text !== "" ? Theme.accentBright : Theme.textDim
                 Rectangle {
                     width: 12; height: 12; radius: 6
                     color: "transparent"
                     border.width: 2
-                    border.color: Theme.textDim
+                    border.color: parent.tone
+                    Behavior on border.color { ColorAnimation { duration: Theme.fadeMs } }
                 }
                 Rectangle {
                     x: 10; y: 11
                     width: 7; height: 2; radius: 1
                     rotation: 45
-                    color: Theme.textDim
+                    color: parent.tone
+                    Behavior on color { ColorAnimation { duration: Theme.fadeMs } }
                 }
             }
 
@@ -334,11 +350,10 @@ PanelWindow {
                 NumberAnimation { properties: "scale,opacity"; to: 1; duration: root.filterMs }
             }
 
-            highlight: Rectangle {
+            highlight: Selection {
                 width: root.cellWidth
                 height: root.cellHeight
                 radius: 18
-                color: Theme.hoverStrong
                 // Pojawia się razem z ikoną, na której stoi — inaczej przy
                 // otwarciu wisiałoby puste podświetlenie przed falą.
                 opacity: grid.currentItem ? Math.min(1, grid.currentItem.enter) : 0
@@ -407,7 +422,7 @@ PanelWindow {
                         anchors.fill: parent
                         anchors.margins: 4
                         radius: 18
-                        color: Theme.hover
+                        color: Theme.mix(Theme.surface, Theme.accent, 0.1)
                         // Aktualny ma podświetlenie z GridView.highlight, które przepływa.
                         opacity: cellMouse.containsMouse && !cell.current ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: Theme.quickMs } }
@@ -460,11 +475,21 @@ PanelWindow {
                     }
                 }
 
+                // Fala z miejsca kliknięcia, w obrębie komórki.
+                Ripple {
+                    id: cellRipple
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    reach: root.cellWidth * 0.75
+                    strength: 0.35
+                }
+
                 MouseArea {
                     id: cellMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onPressed: mouse => cellRipple.burst(mouse.x - 4, mouse.y - 4)
                     onClicked: mouse => {
                         if (mouse.button === Qt.RightButton) root.openMenu(cell, cell.entry);
                         else root.launch(cell.entry);

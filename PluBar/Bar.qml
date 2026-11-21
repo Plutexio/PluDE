@@ -229,6 +229,26 @@ PanelWindow {
         Hyprland.dispatch("hl.dsp.focus({ workspace = " + sel + " })");
     }
 
+    // Obrys pigułek z odcieniem akcentu, cień pod nimi (osobny rozmyty
+    // prostokąt, nie efekt na pigułce: ta ma żywą treść).
+    readonly property color pillBorder: Theme.mix(Theme.border, Theme.accent, 0.25)
+
+    component PillShadow: SoftGlow {
+        required property Item pill
+        visible: pill.visible
+        x: pill.x
+        y: pill.y
+        width: pill.width
+        height: pill.height
+        radius: pill.radius
+        offsetY: 3
+        blur: 20
+        strength: 0.55 * pill.opacity
+    }
+
+    PillShadow { pill: leftPill }
+    PillShadow { pill: rightPill }
+
     ClippingRectangle {
         id: leftPill
 
@@ -240,7 +260,7 @@ PanelWindow {
         radius: height / 2
         color: Theme.surface
         border.width: 1
-        border.color: Theme.border
+        border.color: root.pillBorder
         contentUnderBorder: true
 
         Behavior on width {
@@ -297,6 +317,91 @@ PanelWindow {
                     }
                 }
 
+                // ---- znacznik bieżącego obszaru ----
+                // Jeden dla wszystkich kropek: przy przejściu przednia krawędź
+                // wyrywa się szybko, tylna dociąga sprężyście, więc znacznik
+                // rozciąga się i przelewa na nowe miejsce. Pozycje liczone
+                // z indeksu (kropki 8 + odstęp 8, bieżąca 20), nie z geometrii
+                // delegatów: te same się animują i znacznik goniłby ruchomy cel.
+                readonly property int dotGap: 8
+                readonly property int dotSize: 8
+                readonly property int currentWidth: 20
+                readonly property int currentIndex: root.workspace ? root.workspaceIds.indexOf(root.workspace.id) : -1
+                function leftOf(i) { return wsRow.x + i * (dotSize + dotGap) + dotGap / 2; }
+
+                property real headLeft: 0
+                property real headRight: 0
+                property bool placed: false
+
+                onCurrentIndexChanged: moveMarker()
+                Component.onCompleted: moveMarker()
+                // Bez zmiany indeksu przesuwa się cały rząd (nowy obszar dalej).
+                onWidthChanged: if (!markerAnim.running) moveMarker()
+
+                function moveMarker() {
+                    if (currentIndex < 0) return;
+                    const l = leftOf(currentIndex), r = l + currentWidth;
+                    if (!placed) {
+                        headLeft = l; headRight = r; placed = true;
+                        return;
+                    }
+                    const right = l > headLeft;
+                    leadAnim.property = right ? "headRight" : "headLeft";
+                    leadAnim.to = right ? r : l;
+                    tailAnim.property = right ? "headLeft" : "headRight";
+                    tailAnim.to = right ? l : r;
+                    markerAnim.restart();
+                }
+
+                ParallelAnimation {
+                    id: markerAnim
+                    NumberAnimation {
+                        id: leadAnim
+                        target: workspaces
+                        duration: 220
+                        easing.type: Easing.OutCubic
+                    }
+                    SequentialAnimation {
+                        PauseAnimation { duration: 60 }
+                        NumberAnimation {
+                            id: tailAnim
+                            target: workspaces
+                            duration: 420
+                            easing.type: Easing.OutBack
+                            easing.overshoot: 1.6
+                        }
+                    }
+                }
+
+                SoftGlow {
+                    x: marker.x
+                    y: marker.y
+                    width: marker.width
+                    height: marker.height
+                    radius: marker.radius
+                    color: Theme.accent
+                    blur: 16
+                    spread: 1
+                    strength: 0.55 * marker.opacity
+                }
+
+                Rectangle {
+                    id: marker
+                    z: 1    // nad kropkami, które mija przy rozciąganiu
+                    x: workspaces.headLeft
+                    width: Math.max(workspaces.dotSize, workspaces.headRight - workspaces.headLeft)
+                    height: workspaces.dotSize
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: height / 2
+                    opacity: workspaces.currentIndex >= 0 ? 1 : 0
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0; color: Theme.accent }
+                        GradientStop { position: 1; color: Theme.accent2 }
+                    }
+                    Behavior on opacity { NumberAnimation { duration: Theme.fadeMs } }
+                }
+
                 Row {
                     id: wsRow
                     anchors.centerIn: parent
@@ -331,10 +436,11 @@ PanelWindow {
                                 height: 8
                                 radius: 4
                                 // Pełne kolory: zajęty jaśniej, pusty jak obrys.
+                                // Bieżący rysuje znacznik nad rzędem.
                                 color: slot.urgent ? Theme.warning
-                                     : slot.current ? Theme.accent
+                                     : slot.current ? "transparent"
                                      : slot.windows > 0 ? Theme.textDim
-                                     : "#2a2a2c"
+                                     : Theme.surfacePressed
                                 scale: slot.hovered && !slot.current ? 1.3 : 1
 
                                 Behavior on width {
@@ -425,6 +531,62 @@ PanelWindow {
 
     function pct(v) { return Math.round(v * 100) + "%"; }
 
+    // ---- reakcje na zmiany stanu ----
+    // Ikony odpowiadają na zmianę, skąd by nie przyszła (klawisze,
+    // wyspa, inny program): podskok przy włączeniu, kręcenie głową przy
+    // wyłączeniu, fale przy głośności. Tylko na widocznym pasku i po
+    // pierwszym odczycie (reactReady), żeby start nie odpalał wszystkiego.
+    property bool reactReady: false
+    Timer { interval: 1500; running: true; onTriggered: root.reactReady = true }
+    function react(button, on) {
+        if (!reactReady || !shown || !button.visible) return;
+        if (on) button.kick(); else button.shake();
+    }
+
+    property real lastVolume: -1
+    Connections {
+        target: Audio
+        function onVolumeChanged() {
+            const v = Audio.volume;
+            if (root.reactReady && root.shown && root.lastVolume >= 0 && Math.abs(v - root.lastVolume) > 0.001)
+                waves.burst(v > root.lastVolume);
+            root.lastVolume = v;
+        }
+        function onMutedChanged() { root.react(volume, !Audio.muted); }
+        function onMicOnChanged() { root.react(mic, Audio.micOn); }
+    }
+
+    Connections {
+        target: Connectivity
+        function onWifiEnabledChanged() { root.react(network, Connectivity.wifiEnabled); }
+        function onNetLabelChanged() { if (Connectivity.wifiNetwork || Connectivity.wiredConnected) root.react(network, true); }
+        function onBtEnabledChanged() { root.react(bluetooth, Connectivity.btEnabled); }
+        function onBtConnectedChanged() { root.react(bluetooth, true); }
+    }
+
+    Connections {
+        target: Vpn
+        function onConnectedChanged() { root.react(vpn, Vpn.connected); }
+    }
+
+    Connections {
+        target: PowerProfiles
+        function onProfileChanged() { root.react(profile, true); }
+    }
+
+    onChargingChanged: react(batteryButton, charging)
+
+    // Łączenie z Wi-Fi: kreski zapalają się po kolei na bladym kształcie.
+    readonly property var connectingFrames: ["wifi1", "wifi2", "wifi"]
+    property int connectingFrame: 0
+    Timer {
+        interval: 320
+        repeat: true
+        running: Connectivity.wifiConnecting && root.shown
+        onRunningChanged: root.connectingFrame = 0
+        onTriggered: root.connectingFrame = (root.connectingFrame + 1) % root.connectingFrames.length
+    }
+
     function duration(sec) {
         if (!sec || sec <= 0) return "";
         const h = Math.floor(sec / 3600);
@@ -491,7 +653,7 @@ PanelWindow {
         radius: height / 2
         color: Theme.surface
         border.width: 1
-        border.color: Theme.border
+        border.color: root.pillBorder
         contentUnderBorder: true
 
         Behavior on width {
@@ -516,6 +678,10 @@ PanelWindow {
                 delay: 0 * root.appearStagger
                 active: brightnessPanel.visible
                 icon: "brightness"
+                // Słońce obraca się z jasnością: kółkiem widać, że „kręcisz”.
+                iconRotation: Brightness.value * 180
+                tint: Theme.warning
+                tintBright: Theme.mix(Theme.warning, "#ffffff", 0.35)
                 tip: "Jasność " + root.pct(Brightness.value)
                 hint: "kółko: zmień · klik: suwak"
                 onClicked: {
@@ -549,6 +715,12 @@ PanelWindow {
                 }
                 onRightClicked: { Audio.toggleMute(); root.poke(volume); }
                 onStepped: steps => { Audio.stepBy(steps * Audio.step); root.poke(volume); }
+
+                overlay: SoundWaves {
+                    id: waves
+                    anchors.fill: parent
+                    iconSize: volume.iconSize
+                }
             }
 
             BarButton {
@@ -571,8 +743,8 @@ PanelWindow {
                 size: root.controlSize
                 shown: root.shown
                 delay: 3 * root.appearStagger
-                icon: Connectivity.netIcon
-                ghost: Connectivity.netIcon === "wifi2" || Connectivity.netIcon === "wifi1" ? "wifi" : ""
+                icon: Connectivity.wifiConnecting ? root.connectingFrames[root.connectingFrame] : Connectivity.netIcon
+                ghost: Connectivity.wifiConnecting || Connectivity.netIcon === "wifi2" || Connectivity.netIcon === "wifi1" ? "wifi" : ""
                 iconColor: Connectivity.netIcon === "wifiOff" ? Theme.textDim : Theme.text
                 dotColor: Connectivity.limited ? Theme.warning : "transparent"
                 tip: Connectivity.netLabel
@@ -700,14 +872,52 @@ PanelWindow {
 
                         Rectangle {
                             id: batteryFill
+                            readonly property bool low: root.hasBattery && !root.charging
+                                                        && root.battery.percentage <= 0.2
                             x: 2
                             y: 2
                             height: parent.height - 4
                             width: Math.max(2, (parent.width - 4) * (root.hasBattery ? root.battery.percentage : 0))
                             radius: 1.5
+                            clip: true
                             color: root.charging ? Theme.success
-                                 : root.hasBattery && root.battery.percentage <= 0.2 ? Theme.danger
+                                 : low ? Theme.danger
                                  : Theme.text
+                            Behavior on color { ColorAnimation { duration: Theme.fadeMs } }
+                            Behavior on width { NumberAnimation { duration: Theme.springMs; easing.type: Easing.OutBack } }
+
+                            // Niski poziom: wypełnienie pulsuje, póki nie
+                            // podłączysz zasilacza.
+                            SequentialAnimation on opacity {
+                                running: batteryFill.low && root.shown
+                                loops: Animation.Infinite
+                                onRunningChanged: if (!running) batteryFill.opacity = 1
+                                NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 1; duration: 700; easing.type: Easing.InOutSine }
+                            }
+
+                            // Ładowanie: jasny błysk przelatuje po wypełnieniu
+                            // od lewej, co chwilę, jak prąd płynący do baterii.
+                            Rectangle {
+                                id: shimmer
+                                visible: root.charging
+                                width: 8
+                                height: parent.height
+                                property real t: 0
+                                x: -width + (batteryShell.width + width) * t
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop { position: 0; color: "transparent" }
+                                    GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.75) }
+                                    GradientStop { position: 1; color: "transparent" }
+                                }
+                                SequentialAnimation on t {
+                                    running: root.charging && root.shown
+                                    loops: Animation.Infinite
+                                    NumberAnimation { from: 0; to: 1; duration: 900; easing.type: Easing.InOutQuad }
+                                    PauseAnimation { duration: 1400 }
+                                }
+                            }
                         }
 
                         Icon {
@@ -716,6 +926,13 @@ PanelWindow {
                             kind: "bolt"
                             size: 11
                             color: Theme.surface
+                            SequentialAnimation on scale {
+                                running: root.charging && root.shown
+                                loops: Animation.Infinite
+                                NumberAnimation { to: 1.18; duration: 450; easing.type: Easing.OutQuad }
+                                NumberAnimation { to: 1; duration: 650; easing.type: Easing.OutBack; easing.overshoot: 2 }
+                                PauseAnimation { duration: 1200 }
+                            }
                         }
                     }
 
@@ -737,6 +954,8 @@ PanelWindow {
                 shown: root.shown
                 delay: 9 * root.appearStagger
                 icon: "power"
+                tint: Theme.danger
+                tintBright: Theme.mix(Theme.danger, "#ffffff", 0.3)
                 tip: "Zasilanie"
                 hint: "klik: wyloguj, uśpij, wyłącz · SUPER+M · prawy: ustawienia"
                 onClicked: {

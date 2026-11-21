@@ -30,7 +30,7 @@ Item {
             : (btn.hovering ? Qt.tint(Theme.surfaceRaised, Qt.rgba(btn.tint.r, btn.tint.g, btn.tint.b, 0.2))
                             : Theme.surfaceRaised)
         border.width: btn.primary ? 0 : 1
-        border.color: btn.hovering ? btn.tint : Qt.rgba(1, 1, 1, 0.1)
+        border.color: btn.hovering ? btn.tint : Theme.border
         scale: mouse.pressed ? 0.95 : 1
 
         Behavior on color { ColorAnimation { duration: Theme.quickMs } }
@@ -41,7 +41,7 @@ Item {
             id: label
             anchors.centerIn: parent
             text: btn.text
-            color: btn.primary ? "#ffffff" : Theme.text
+            color: btn.primary ? Theme.inkOn(btn.tint) : Theme.text
             font.pixelSize: 12
             font.weight: Font.DemiBold
         }

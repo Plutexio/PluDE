@@ -24,7 +24,7 @@ Item {
         anchors.fill: parent
         radius: height / 2
         antialiasing: true
-        color: sw.checked ? sw.accent : Qt.rgba(1, 1, 1, sw.hovering ? 0.22 : 0.14)
+        color: sw.checked ? sw.accent : Theme.alpha(Theme.text, sw.hovering ? 0.22 : 0.14)
 
         Behavior on color { ColorAnimation { duration: Theme.fadeMs; easing.type: Easing.OutCubic } }
 
@@ -37,7 +37,7 @@ Item {
             antialiasing: true
             y: 2
             x: sw.checked ? parent.width - width - 2 : 2
-            color: "#ffffff"
+            color: sw.checked ? Theme.inkOn(sw.accent) : Theme.text
             scale: mouse.pressed ? 0.9 : 1
 
             Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }

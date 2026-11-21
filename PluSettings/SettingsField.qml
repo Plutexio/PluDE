@@ -48,7 +48,7 @@ Item {
         border.width: 1
         border.color: field.invalid ? Theme.danger
             : field.focused ? Theme.accent
-            : Qt.rgba(1, 1, 1, boxMouse.containsMouse ? 0.18 : 0.08)
+            : Theme.alpha(Theme.text, boxMouse.containsMouse ? 0.18 : 0.08)
 
         Behavior on border.color { ColorAnimation { duration: Theme.quickMs } }
 
@@ -64,7 +64,7 @@ Item {
             color: Theme.text
             font.pixelSize: 13
             selectionColor: Theme.accent
-            selectedTextColor: "#ffffff"
+            selectedTextColor: Theme.accentInk
             selectByMouse: true
             clip: true
             inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase

@@ -112,7 +112,7 @@ Item {
         width: 1
         height: Math.round(item.iconSize * 0.7)
         opacity: item.appear
-        color: Qt.rgba(1, 1, 1, 0.14)
+        color: Theme.alpha(Theme.text, 0.14)
     }
 
     // ---- ikona ----

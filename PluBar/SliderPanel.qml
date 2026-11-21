@@ -5,6 +5,7 @@ import qs.Common
 // Panel pod kontrolką paska: nagłówek z ikoną, suwak i opcjonalna lista
 // (wyjścia dźwięku pod suwakiem, tryby energii nad nim: entriesFirst). Osobne okno (xdg_popup) jak PopupMenu — okno paska
 // ma stałą wysokość, a lista wyjść nie ma się w nim gdzie zmieścić.
+// Tło wyrasta z klikniętej kontrolki (GrowBody), suwak w gradiencie akcentu.
 //
 // grabFocus: klik obok zamyka panel (robi to kompozytor, bez animacji).
 PopupWindow {
@@ -42,9 +43,9 @@ PopupWindow {
     grabFocus: true
     visible: false
 
-    implicitWidth: panelWidth
-    // Zapas na odbicie skali przy otwarciu, żeby nie wyjść poza okno.
-    implicitHeight: body.implicitHeight + 8
+    // Okno szersze i wyższe od panelu o margines na cień (GrowBody).
+    implicitWidth: grow.implicitWidth
+    implicitHeight: grow.implicitHeight
 
     anchor.edges: Edges.Bottom
     anchor.gravity: Edges.Bottom
@@ -64,34 +65,36 @@ PopupWindow {
         anchor.rect.y = Math.round(y);
         anchor.rect.width = 1;
         anchor.rect.height = 1;
+        // Gdzie w oknie panelu wypada kontrolka: okno stoi środkiem pod
+        // kotwicą, a przy krawędzi ekranu kompozytor je dosuwa (Slide).
+        // Okno paska ma szerokość ekranu, więc jego x to x ekranu.
+        const left = Math.max(0, Math.min(window.width - implicitWidth, x - implicitWidth / 2));
+        originX = x - left;
         reveal = 0;
         visible = true;
         openAnim.restart();
     }
 
-    // Otwarcie jak panel launchera, tylko mniejsze: skala z 0,92 i kilka px
-    // wyżej, sprężyście. Zamknięcia nie animujemy — robi je kompozytor.
+    // Panel wyrasta z kontrolki (GrowBody): z pigułki pod nią na boki,
+    // potem w dół, sprężyście. Zamknięcia nie animujemy — robi je kompozytor.
     property real reveal: 0
+    property real originX: implicitWidth / 2
     NumberAnimation {
         id: openAnim
         target: panel; property: "reveal"; from: 0; to: 1
-        duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.1
+        duration: 520; easing.type: Easing.OutBack; easing.overshoot: 1.25
     }
 
-    Rectangle {
-        id: body
-        width: panel.panelWidth
-        implicitHeight: column.implicitHeight + panel.padding * 2
-        height: implicitHeight
-        radius: 16
-        color: Theme.surface
-        border.width: 1
-        border.color: Theme.border
+    // Klik w przezroczysty margines na cień to klik obok panelu.
+    mask: Region { item: grow.body }
 
-        transformOrigin: Item.Top
-        scale: 0.92 + 0.08 * panel.reveal
-        y: -10 * (1 - panel.reveal)
-        opacity: Math.min(1, panel.reveal * 1.6)
+    GrowBody {
+        id: grow
+        anchors.fill: parent
+        reveal: panel.reveal
+        originX: panel.originX
+        contentWidth: panel.panelWidth
+        contentHeight: column.implicitHeight + panel.padding * 2
 
         Column {
             id: column
@@ -143,7 +146,7 @@ PopupWindow {
                     width: panel.sliderHeight
                     height: panel.sliderHeight
                     radius: height / 2
-                    color: iconMouse.pressed ? "#2a2a2c" : iconMouse.containsMouse ? Theme.surfaceRaised : "transparent"
+                    color: iconMouse.pressed ? Theme.surfacePressed : iconMouse.containsMouse ? Theme.surfaceRaised : "transparent"
 
                     Icon {
                         anchors.centerIn: parent
@@ -181,7 +184,11 @@ PopupWindow {
                         width: track.height + track.span * Math.max(0, Math.min(1, panel.value))
                         height: parent.height
                         radius: height / 2
-                        color: Theme.accent
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0; color: Theme.accent }
+                            GradientStop { position: 1; color: Theme.accent2 }
+                        }
 
                         // Przeskok między pozycjami sprężyście; płynny suwak
                         // idzie za myszą bez opóźnienia.
@@ -209,15 +216,30 @@ PopupWindow {
                         }
                     }
 
+                    // Poświata pod gałką, mocniejsza przy chwyceniu.
+                    SoftGlow {
+                        x: knob.x
+                        y: knob.y
+                        width: knob.width
+                        height: knob.height
+                        radius: knob.radius
+                        color: Theme.accent2Bright
+                        blur: 14
+                        spread: sliderMouse.pressed ? 3 : 1
+                        strength: sliderMouse.pressed ? 0.9 : 0.5
+                        Behavior on strength { NumberAnimation { duration: Theme.quickMs } }
+                    }
+
                     // Gałka nad kropkami, przy prawym końcu wypełnienia.
                     Rectangle {
+                        id: knob
                         x: fill.width - width - 4
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.height - 8
                         height: width
                         radius: width / 2
                         color: Theme.text
-                        scale: sliderMouse.pressed ? 1.12 : 1
+                        scale: sliderMouse.pressed ? 1.18 : 1
                         Behavior on scale { NumberAnimation { duration: Theme.quickMs; easing.type: Easing.OutBack } }
                     }
 
@@ -322,14 +344,19 @@ PopupWindow {
                         visible: !row.isHeader
                         anchors.fill: parent
                         radius: 10
-                        color: rowMouse.containsMouse ? Theme.surfaceRaised : "transparent"
+                        // Zaznaczona pozycja w odcieniu akcentu, najechana jaśniej.
+                        color: rowMouse.pressed ? Theme.mix(Theme.surface, Theme.accent, 0.26)
+                             : row.modelData.checked ? Theme.mix(Theme.surface, Theme.accent, rowMouse.containsMouse ? 0.2 : 0.13)
+                             : rowMouse.containsMouse ? Theme.mix(Theme.surface, Theme.accent, 0.08)
+                             : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.quickMs } }
 
                         Icon {
                             x: 8
                             anchors.verticalCenter: parent.verticalCenter
                             kind: row.modelData.icon || ""
                             size: 14
-                            color: row.modelData.checked ? Theme.accent : Theme.textDim
+                            color: row.modelData.checked ? Theme.accentBright : Theme.textDim
                         }
 
                         Text {

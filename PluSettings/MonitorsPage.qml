@@ -136,7 +136,7 @@ Column {
                         color: current ? Qt.tint(Theme.surfaceRaised, Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2))
                             : chipMouse.containsMouse ? Theme.surface : Theme.surfaceRaised
                         border.width: 1
-                        border.color: current ? Theme.accent : Qt.rgba(1, 1, 1, 0.1)
+                        border.color: current ? Theme.accent : Theme.border
 
                         Behavior on color { ColorAnimation { duration: Theme.quickMs } }
 

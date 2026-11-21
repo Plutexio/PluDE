@@ -123,7 +123,7 @@ FocusScope {
         radius: 14
         color: Theme.surface
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.12)
+        border.color: Theme.alpha(Theme.text, 0.12)
         transformOrigin: menu.above ? Item.Bottom : Item.Top
 
         opacity: menu.open ? 1 : 0

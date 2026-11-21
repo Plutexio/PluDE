@@ -4,7 +4,7 @@ import qs.Common
 
 // Panel dysków pod kontrolką paska: dysk (nazwa, rozmiar, wysunięcie),
 // pod nim jego woluminy (klik: zamontuj i otwórz). Okno i otwarcie jak
-// w SliderPanel: xdg_popup z grabFocus, sprężyście ze skali 0,92.
+// w SliderPanel: xdg_popup z grabFocus, wyrasta z kontrolki (GrowBody).
 PopupWindow {
     id: panel
 
@@ -19,8 +19,9 @@ PopupWindow {
     grabFocus: true
     visible: false
 
-    implicitWidth: panelWidth
-    implicitHeight: body.implicitHeight + 8
+    // Okno szersze i wyższe od panelu o margines na cień (GrowBody).
+    implicitWidth: grow.implicitWidth
+    implicitHeight: grow.implicitHeight
 
     anchor.edges: Edges.Bottom
     anchor.gravity: Edges.Bottom
@@ -40,6 +41,11 @@ PopupWindow {
         anchor.rect.y = Math.round(y);
         anchor.rect.width = 1;
         anchor.rect.height = 1;
+        // Gdzie w oknie panelu wypada kontrolka: okno stoi środkiem pod
+        // kotwicą, a przy krawędzi ekranu kompozytor je dosuwa (Slide).
+        // Okno paska ma szerokość ekranu, więc jego x to x ekranu.
+        const left = Math.max(0, Math.min(window.width - implicitWidth, x - implicitWidth / 2));
+        originX = x - left;
         reveal = 0;
         visible = true;
         openAnim.restart();
@@ -51,27 +57,26 @@ PopupWindow {
         function onPresentChanged() { if (!Drives.present) panel.visible = false; }
     }
 
+    // Panel wyrasta z kontrolki (GrowBody): z pigułki pod nią na boki,
+    // potem w dół, sprężyście. Zamknięcia nie animujemy — robi je kompozytor.
     property real reveal: 0
+    property real originX: implicitWidth / 2
     NumberAnimation {
         id: openAnim
         target: panel; property: "reveal"; from: 0; to: 1
-        duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.1
+        duration: 520; easing.type: Easing.OutBack; easing.overshoot: 1.25
     }
 
-    Rectangle {
-        id: body
-        width: panel.panelWidth
-        implicitHeight: column.implicitHeight + panel.padding * 2
-        height: implicitHeight
-        radius: 16
-        color: Theme.surface
-        border.width: 1
-        border.color: Theme.border
+    // Klik w przezroczysty margines na cień to klik obok panelu.
+    mask: Region { item: grow.body }
 
-        transformOrigin: Item.Top
-        scale: 0.92 + 0.08 * panel.reveal
-        y: -10 * (1 - panel.reveal)
-        opacity: Math.min(1, panel.reveal * 1.6)
+    GrowBody {
+        id: grow
+        anchors.fill: parent
+        reveal: panel.reveal
+        originX: panel.originX
+        contentWidth: panel.panelWidth
+        contentHeight: column.implicitHeight + panel.padding * 2
 
         Column {
             id: column
@@ -150,7 +155,7 @@ PopupWindow {
                             height: 26
                             radius: 13
                             visible: !diskBlock.disk.released
-                            color: ejectMouse.pressed ? "#2a2a2c" : ejectMouse.containsMouse ? Theme.surfaceRaised : "transparent"
+                            color: ejectMouse.pressed ? Theme.surfacePressed : ejectMouse.containsMouse ? Theme.surfaceRaised : "transparent"
                             Behavior on color { ColorAnimation { duration: Theme.quickMs } }
 
                             Icon {
@@ -186,7 +191,7 @@ PopupWindow {
                             width: parent.width
                             height: panel.volumeRowHeight
                             radius: 10
-                            color: volMouse.pressed ? "#2a2a2c" : volMouse.containsMouse ? Theme.surfaceRaised : "transparent"
+                            color: volMouse.pressed ? Theme.surfacePressed : volMouse.containsMouse ? Theme.surfaceRaised : "transparent"
                             opacity: diskBlock.disk.released ? 0.55 : 1
                             Behavior on color { ColorAnimation { duration: Theme.quickMs } }
 
@@ -231,7 +236,7 @@ PopupWindow {
                                 width: parent.width - x - 10
                                 height: 4
                                 radius: 2
-                                color: "#2a2a2c"
+                                color: Theme.surfacePressed
 
                                 Rectangle {
                                     width: Math.max(height, parent.width * Math.min(1, vol.usage))

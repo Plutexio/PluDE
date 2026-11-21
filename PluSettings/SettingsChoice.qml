@@ -38,7 +38,7 @@ Item {
         color: Theme.surface
         border.width: 1
         border.color: choice.expanded ? Theme.accent
-            : Qt.rgba(1, 1, 1, mouse.containsMouse ? 0.18 : 0.08)
+            : Theme.alpha(Theme.text, mouse.containsMouse ? 0.18 : 0.08)
 
         Behavior on border.color { ColorAnimation { duration: Theme.quickMs } }
 
