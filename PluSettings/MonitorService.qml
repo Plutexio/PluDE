@@ -47,8 +47,8 @@ Singleton {
 
     // Monitory w kolejności Hyprlanda (id), razem z wyłączonymi:
     // { name, description, output, width, height, refreshRate, x, y, scale,
-    //   transform, disabled, mirrorOf (nazwa albo ""), modes: [{ width, height, refresh }],
-    //   logicalWidth, logicalHeight }
+    //   transform, disabled, mirrorOf (nazwa albo ""), internal (matryca laptopa),
+    //   modes: [{ width, height, refresh, scaled }], logicalWidth, logicalHeight }
     property var monitors: []
     // Pierwszy odczyt doszedł — wcześniej pusta lista nie znaczy „brak monitorów”.
     property bool ready: false
@@ -294,6 +294,58 @@ Singleton {
         refresh();
     }
 
+    // ---- tryby ----
+
+    // Matryca laptopa zgłasza w EDID zwykle jeden tryb (tu Sharp 4K: tylko
+    // 3840×2160, jądro też widzi tylko ten). Niższy tryb spoza listy
+    // Hyprland ustawia jako własny, a karta (i915: panel fitter) skaluje go
+    // do natywnego — zmierzone: 1920×1080@60 na eDP-1 przyjęty („ok”,
+    // monitors -j podaje 1920×1080). Dla zewnętrznych monitorów tego nie
+    // robimy: tryb spoza EDID potrafi tam dać czarny ekran.
+    readonly property var internalPrefixes: ["eDP-", "LVDS-", "DSI-"]
+    // Rozdzielczości do skalowania; z listy idą tylko te o proporcjach
+    // matrycy (± aspectTolerance) i mniejsze od natywnej.
+    readonly property var commonResolutions: [
+        [3840, 2400], [3456, 2160], [3200, 2000], [3200, 1800], [3000, 2000],
+        [2880, 1920], [2880, 1800], [2560, 1600], [2560, 1440], [2400, 1600],
+        [2256, 1504], [2160, 1440], [1920, 1280], [1920, 1200], [1920, 1080],
+        [1680, 1050], [1600, 900], [1440, 960], [1440, 900], [1366, 768],
+        [1280, 800], [1280, 720]
+    ]
+    readonly property real aspectTolerance: 0.01
+
+    function isInternal(name) { return internalPrefixes.some(p => name.startsWith(p)); }
+
+    // [{ width, height, refresh, scaled }]: "3840x2160@60.00Hz" → liczby.
+    // Przy braku listy (atrapa) zostaje choć bieżący tryb. Bieżący tryb
+    // własny (ustawiony stąd albo ręcznie) też zawsze jest na liście.
+    function modesOf(m) {
+        const out = (m.availableModes && m.availableModes.length > 0 ? m.availableModes
+                : [m.width + "x" + m.height + "@" + m.refreshRate + "Hz"]).map(s => {
+            const r = /^(\d+)x(\d+)@([\d.]+)/.exec(s);
+            return r ? { width: +r[1], height: +r[2], refresh: +r[3], scaled: false } : null;
+        }).filter(x => x !== null);
+        if (!isInternal(m.name) || out.length === 0) return out;
+
+        let native = out[0];
+        out.forEach(md => { if (md.width * md.height > native.width * native.height) native = md; });
+        const rates = out.filter(md => md.width === native.width && md.height === native.height)
+            .map(md => md.refresh);
+        const has = (w, h) => out.some(md => md.width === w && md.height === h);
+        const aspect = native.width / native.height;
+        const sizes = commonResolutions.filter(r => r[0] < native.width && r[1] < native.height
+            && Math.abs(r[0] / r[1] - aspect) / aspect <= aspectTolerance);
+        // Połowa natywnej: skalowanie 2:1 jest najostrzejsze.
+        if (native.width % 2 === 0 && native.height % 2 === 0)
+            sizes.push([native.width / 2, native.height / 2]);
+        if (!has(m.width, m.height)) sizes.push([m.width, m.height]);
+        sizes.forEach(r => {
+            if (has(r[0], r[1])) return;
+            rates.forEach(rate => out.push({ width: r[0], height: r[1], refresh: rate, scaled: true }));
+        });
+        return out;
+    }
+
     function parse(text) {
         let raw;
         try { raw = JSON.parse(text); } catch (e) { return null; }
@@ -314,13 +366,8 @@ Singleton {
                 transform: m.transform,
                 disabled: m.disabled,
                 mirrorOf: m.mirrorOf === "none" ? "" : (byId[m.mirrorOf] || m.mirrorOf),
-                // "3840x2160@60.00Hz" → liczby; przy braku listy (atrapa)
-                // zostaje choć bieżący tryb.
-                modes: (m.availableModes && m.availableModes.length > 0 ? m.availableModes
-                        : [m.width + "x" + m.height + "@" + m.refreshRate + "Hz"]).map(s => {
-                    const r = /^(\d+)x(\d+)@([\d.]+)/.exec(s);
-                    return r ? { width: +r[1], height: +r[2], refresh: +r[3] } : null;
-                }).filter(x => x !== null),
+                internal: isInternal(m.name),
+                modes: modesOf(m),
                 logicalWidth: Math.round((rotated ? m.height : m.width) / m.scale),
                 logicalHeight: Math.round((rotated ? m.width : m.height) / m.scale)
             };

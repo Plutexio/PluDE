@@ -20,6 +20,7 @@ Singleton {
 
     readonly property var pages: [
         { id: "general", title: "Ogólne", icon: "tune" },
+        { id: "wifi", title: "Wi-Fi", icon: "wifi" },
         { id: "monitors", title: "Monitory", icon: "computer" },
         { id: "capture", title: "Schowek i zrzuty", icon: "paste" },
         { id: "island", title: "Wyspa", icon: "island" }
@@ -27,6 +28,11 @@ Singleton {
 
     property bool shown: false
     property string page: "general"
+    // Podstrona (np. zapisana sieć Wi-Fi: jej uuid) i jej nagłówek. Zmiana
+    // strony wraca do widoku głównego.
+    property string detail: ""
+    property string detailTitle: ""
+    onPageChanged: back()
     // Wspólna lista wyboru okna (ChoiceMenu); ustawia ją SettingsWindow.
     property var menu: null
 
@@ -36,6 +42,16 @@ Singleton {
         // tytule bez ^…$ — z kotwicami fokus nie przechodził (zmierzone).
         if (shown) Hyprland.dispatch("hl.dsp.focus({ window = \"title:" + windowTitle + "\" })");
         shown = true;
+    }
+
+    function openDetail(id, title) {
+        detailTitle = title;
+        detail = id;
+    }
+
+    function back() {
+        detail = "";
+        detailTitle = "";
     }
 
     function close() { shown = false; }

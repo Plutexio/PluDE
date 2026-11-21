@@ -55,6 +55,18 @@ Singleton {
     // ("wifi" | "bluetooth"). Pasek u góry: klik w ikonę sieci.
     function toggleOverlay(mode) { call("toggleOverlay", [mode]); }
 
+    // Zerknięcie w zwiniętej pigułce (ikona z IslandIcon wyspy, tytuł,
+    // wartość). Wyspa bez zerknięć odpowiada „Function not found.” z kodem 0,
+    // więc cokolwiek wypisane = zwykłe powiadomienie od appName (treść detail,
+    // domyślnie wartość; wyspa ma bodyMarkupSupported, stąd encje).
+    function glance(icon, title, value, appName, detail) {
+        const script = 'out=$(qs -p "$1" ipc call island glance "$2" "$3" "$4" 2>&1)\n'
+            + '[ -z "$out" ] || notify-send -a "$5" "$3" "$6"';
+        Quickshell.execDetached(["sh", "-c", script, "plude-glance", Settings.islandPath, icon, title, value,
+            appName || "PluDE",
+            (detail || value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")]);
+    }
+
     // ---- odczyt stanu ----
 
     QtObject {

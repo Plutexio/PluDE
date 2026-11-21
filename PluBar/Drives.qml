@@ -321,14 +321,8 @@ Singleton {
         for (const d of disks) if (!d.released) eject(d);
     }
 
-    // Zerknięcie w pigułce wyspy, jak tekst ze zrzutu (ScreenshotService):
-    // wyspa bez zerknięć odpowiada „Function not found.” z kodem 0, więc
-    // cokolwiek wypisane = zwykłe powiadomienie.
     function glance(icon, title, value, detail) {
-        const script = 'out=$(qs -p "$1" ipc call island glance "$2" "$3" "$4" 2>&1)\n'
-            + '[ -z "$out" ] || notify-send -a Dyski "$3" "$5"';
-        Quickshell.execDetached(["sh", "-c", script, "plude-drives", Settings.islandPath, icon, title, value,
-            (detail || value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")]);
+        IslandLink.glance(icon, title, value, "Dyski", detail);
     }
 
     // ---------------------------------------------------------------

@@ -66,6 +66,11 @@ Singleton {
     // Zerknięcie w wyspie przy wpięciu pendrive'a / dysku (PluBar/Drives).
     readonly property alias drivesAnnounce: data.drivesAnnounce
 
+    // ---- VPN ----
+    // Ostatnio włączony VPN ("tailscale" / "nm:<uuid>"): prawy klik w pasku
+    // włącza właśnie jego (PluBar/Vpn). Pisze go program.
+    readonly property alias vpnLast: data.vpnLast
+
     // Plik wczytany (albo zapisany pierwszy raz). Wcześniej aliasy mają
     // wartości domyślne, a nie te z pliku.
     property bool loaded: false
@@ -108,6 +113,7 @@ Singleton {
             property bool clipboardPaste: true
             property int batteryLimit: 0
             property bool drivesAnnounce: true
+            property string vpnLast: ""
         }
     }
 

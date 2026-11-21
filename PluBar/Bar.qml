@@ -12,7 +12,7 @@ import qs.PluSettings
 // Pasek u góry ekranu: dwie pigułki po bokach, wyspa między nimi.
 //
 //   [obszary robocze · zasobnik]      ( wyspa )      [jasność · dźwięk · mikrofon ·
-//                                                     sieć · BT · dyski · energia · bateria · zasilanie]
+//                                                     sieć · VPN · BT · dyski · energia · bateria · zasilanie]
 //
 // Pigułki mają wysokość i odstęp od góry zwiniętej wyspy, więc stoją z nią
 // w jednej linii. Każda sięga najwyżej do sideLimit: rozwinięta wyspa
@@ -105,6 +105,7 @@ PanelWindow {
         if (!shown) {
             powerPanel.visible = false; volumePanel.visible = false;
             brightnessPanel.visible = false; drivesPanel.visible = false;
+            vpnPanel.visible = false;
         }
     }
     Component.onCompleted: if (shown) showAnim.start()
@@ -470,10 +471,12 @@ PanelWindow {
         powerPanel.toggleAt(root, p.x, p.y);
     }
 
-    // Sieć / Bluetooth: wyspa żyje → jej nakładka, nie żyje → terminal.
+    // Sieć / Bluetooth: wyspa żyje → jej nakładka, nie żyje → strona Wi-Fi
+    // w ustawieniach albo bluetoothctl w terminalu.
     function openNetwork(mode) {
         if (IslandLink.alive) IslandLink.toggleOverlay(mode);
-        else Quickshell.execDetached([Settings.terminal, "-e", mode === "wifi" ? "nmtui" : "bluetoothctl"]);
+        else if (mode === "wifi") SettingsApp.open("wifi");
+        else Quickshell.execDetached([Settings.terminal, "-e", "bluetoothctl"]);
     }
 
     ClippingRectangle {
@@ -575,9 +578,37 @@ PanelWindow {
                 tip: Connectivity.netLabel
                      + (Connectivity.wifiNetwork ? " · " + root.pct(Connectivity.wifiStrength) : "")
                      + (Connectivity.limited ? " · bez internetu" : "")
-                hint: "klik: sieci · prawy: " + (Connectivity.wifiEnabled ? "wyłącz" : "włącz") + " Wi-Fi"
+                hint: "klik: sieci · prawy: " + (Connectivity.wifiEnabled ? "wyłącz" : "włącz") + " Wi-Fi · środkowy: ustawienia"
                 onClicked: { root.hideTip(); root.openNetwork("wifi"); }
+                onMiddleClicked: { root.hideTip(); SettingsApp.open("wifi"); }
                 onRightClicked: { Connectivity.setWifiEnabled(!Connectivity.wifiEnabled); root.poke(network); }
+            }
+
+            // Tylko gdy jest jakiś VPN (Tailscale z działającym demonem albo
+            // połączenie VPN / WireGuard w NetworkManagerze).
+            BarButton {
+                id: vpn
+                visible: Vpn.available
+                bar: root
+                size: root.controlSize
+                shown: root.shown && Vpn.available
+                delay: 4 * root.appearStagger
+                active: vpnPanel.visible
+                icon: Vpn.connected ? "vpn" : "vpnOff"
+                iconColor: Vpn.connected ? Theme.text : Theme.textDim
+                dotColor: Vpn.working ? Theme.accent
+                        : Vpn.error !== "" || Vpn.tsNeedsLogin ? Theme.warning : "transparent"
+                tip: Vpn.connected
+                        ? "VPN: " + Vpn.active.map(i => i.name + (i.detail !== "" ? " · " + i.detail : "")).join(", ")
+                        : Vpn.error !== "" ? "VPN: " + Vpn.error
+                        : "VPN wyłączony"
+                hint: "klik: lista · prawy: " + (Vpn.connected ? "wyłącz" : "włącz")
+                onClicked: {
+                    root.hideTip();
+                    const p = root.below(vpn);
+                    vpnPanel.toggleAt(root, p.x, p.y);
+                }
+                onRightClicked: { Vpn.quickToggle(); root.poke(vpn); }
             }
 
             BarButton {
@@ -586,7 +617,7 @@ PanelWindow {
                 bar: root
                 size: root.controlSize
                 shown: root.shown
-                delay: 4 * root.appearStagger
+                delay: 5 * root.appearStagger
                 icon: Connectivity.btIcon
                 iconColor: Connectivity.btEnabled ? Theme.text : Theme.textDim
                 tip: Connectivity.btLabel
@@ -603,7 +634,7 @@ PanelWindow {
                 bar: root
                 size: root.controlSize
                 shown: root.shown && Drives.present
-                delay: 5 * root.appearStagger
+                delay: 6 * root.appearStagger
                 active: drivesPanel.visible
                 icon: Drives.disks.length > 0 ? Drives.iconFor(Drives.disks[0]) : "usb"
                 iconColor: Drives.mountedCount > 0 ? Theme.text : Theme.textDim
@@ -627,7 +658,7 @@ PanelWindow {
                 bar: root
                 size: root.controlSize
                 shown: root.shown
-                delay: 6 * root.appearStagger
+                delay: 7 * root.appearStagger
                 active: powerPanel.visible
                 icon: PowerProfiles.profile === PowerProfile.PowerSaver ? "powerSaver"
                     : PowerProfiles.profile === PowerProfile.Performance ? "performance" : "balanced"
@@ -644,7 +675,7 @@ PanelWindow {
                 bar: root
                 size: root.controlSize
                 shown: root.shown
-                delay: 7 * root.appearStagger
+                delay: 8 * root.appearStagger
                 label: root.hasBattery ? root.pct(root.battery.percentage) : ""
                 labelColor: batteryFill.color === Theme.danger ? Theme.danger : Theme.text
                 tip: "Bateria " + label + (root.batteryState !== "" ? " · " + root.batteryState : "")
@@ -704,7 +735,7 @@ PanelWindow {
                 bar: root
                 size: root.controlSize
                 shown: root.shown
-                delay: 8 * root.appearStagger
+                delay: 9 * root.appearStagger
                 icon: "power"
                 tip: "Zasilanie"
                 hint: "klik: wyloguj, uśpij, wyłącz · SUPER+M · prawy: ustawienia"
@@ -799,7 +830,9 @@ PanelWindow {
         value: (limit - BatteryLimit.minimum) / span
         snaps: span / BatteryLimit.step + 1
         valueText: unlimited ? "bez limitu" : limit + "%"
-        note: !BatteryLimit.writable
+        // Bez limitu ładowania sama lista trybów, bez notki o nim.
+        note: !BatteryLimit.supported ? ""
+            : !BatteryLimit.writable
                 ? "Brak uprawnień do zapisu progu. Jednorazowo: reguła udev z PluBar/99-plude-battery.rules."
             : BatteryLimit.error !== "" ? BatteryLimit.error
             : (unlimited ? "Ładuje do pełna"
@@ -814,6 +847,48 @@ PanelWindow {
 
     DrivesPanel {
         id: drivesPanel
+    }
+
+    // Lista VPN-ów bez suwaka; pod nią węzły wyjściowe Tailscale (tylko
+    // przy włączonym i gdy tailnet jakiś oferuje).
+    SliderPanel {
+        id: vpnPanel
+
+        sliderVisible: false
+        entriesFirst: true
+        entries: {
+            const out = [{ header: "VPN" }];
+            for (const item of Vpn.items) {
+                const key = item.key;
+                out.push({
+                    text: item.name + (item.busy ? " · …" : item.detail !== "" ? " · " + item.detail : ""),
+                    icon: item.on ? "vpn" : "vpnOff",
+                    checked: item.on,
+                    run: () => Vpn.toggle(key)
+                });
+            }
+            const ts = Vpn.tailscale;
+            if (Vpn.tsRunning && ts.exitNodes.length > 0) {
+                out.push({ header: "Węzeł wyjściowy" });
+                out.push({ text: "Brak (tylko tailnet)", icon: "link", checked: ts.exitNode === "",
+                           run: () => Vpn.setExitNode("") });
+                for (const node of ts.exitNodes) {
+                    const ip = node.ip;
+                    out.push({ text: node.name + (node.online ? "" : " · offline"), icon: "computer",
+                               checked: node.active, run: () => Vpn.setExitNode(ip) });
+                }
+            }
+            if (Vpn.needsOperator)
+                out.push({ text: "Pozwól PluDE sterować Tailscale…", icon: "lock",
+                           run: () => { vpnPanel.visible = false; Vpn.grantOperator(); } });
+            return out;
+        }
+        note: Vpn.error !== "" ? Vpn.error
+            : Vpn.needsOperator ? "Tailscale zmienia stan tylko dla roota albo operatora. Jednorazowo: "
+                                  + Vpn.operatorCommand
+            : ""
+        noteColor: Theme.warning
+        onVisibleChanged: if (visible) Vpn.refresh()
     }
 
     SliderPanel {

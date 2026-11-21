@@ -32,7 +32,7 @@ Column {
             const key = m.width + "x" + m.height;
             if (seen[key]) return;
             seen[key] = true;
-            out.push({ value: key, label: m.width + " × " + m.height });
+            out.push({ value: key, label: m.width + " × " + m.height + (m.scaled ? " · skalowana" : "") });
         });
         return out;
     }
@@ -202,6 +202,11 @@ Column {
 
         SettingsRow {
             title: "Rozdzielczość"
+            // Matryca ma jeden tryb natywny; reszta to tryby własne,
+            // które skaluje karta graficzna (MonitorService.modesOf).
+            description: page.e && page.e.internal
+                ? "Ekran wbudowany ma jedną natywną rozdzielczość. Niższe skaluje karta graficzna: obraz jest mniej ostry, a skala zmienia się tak, żeby interfejs miał tę samą wielkość."
+                : ""
             enabled: page.e !== null && !page.e.disabled
 
             SettingsChoice {

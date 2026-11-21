@@ -125,6 +125,22 @@ Item {
         }
     }
 
+    // VPN. toggle jak prawy klik w pasku (wyłącza działające albo włącza
+    // ostatni), set dla jednego klucza z list ("tailscale", "nm:<uuid>").
+    //   qs -p ~/PluDE ipc call vpn toggle
+    //   qs -p ~/PluDE ipc call vpn set tailscale false
+    IpcHandler {
+        target: "vpn"
+
+        function toggle(): void { Vpn.quickToggle(); }
+        function set(key: string, on: bool): void { Vpn.setOn(key, on); }
+        function exitNode(ip: string): void { Vpn.setExitNode(ip); }
+        function list(): string {
+            return Vpn.items.map(i => i.key + "\t" + i.name + "\t" + (i.on ? "on" : "off")
+                + (i.detail !== "" ? "\t" + i.detail : "")).join("\n");
+        }
+    }
+
     // Skróty globalne — klawisze przypisuje Hyprland (hyprland.lua):
     //   hl.bind(mainMod .. " + R", hl.dsp.global("quickshell:launcherToggle"))
     GlobalShortcut {

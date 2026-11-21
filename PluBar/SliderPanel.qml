@@ -256,8 +256,9 @@ PopupWindow {
             }
 
             // ---- notka ----
+            // Także bez suwaka: sama lista z notką (VPN, brak uprawnień).
             Text {
-                visible: panel.sliderVisible && panel.note !== ""
+                visible: panel.note !== ""
                 width: parent.width
                 text: panel.note
                 color: panel.noteColor
@@ -369,7 +370,7 @@ PopupWindow {
             }
 
             Rectangle {
-                visible: panel.entriesFirst && panel.sliderVisible
+                visible: panel.entriesFirst && (panel.sliderVisible || panel.note !== "")
                 width: parent.width
                 height: 9
                 color: "transparent"

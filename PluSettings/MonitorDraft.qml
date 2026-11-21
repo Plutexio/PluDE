@@ -12,7 +12,7 @@ QtObject {
     id: draft
 
     // [{ name, description, width, height, refresh, x, y, scale, transform,
-    //    disabled, mirror, modes }]
+    //    disabled, mirror, internal, modes }]
     property var items: []
     property string selected: ""
     // W trakcie przeciągania stan z Hyprlanda nie nadpisuje szkicu.
@@ -51,6 +51,7 @@ QtObject {
             transform: m.transform,
             disabled: m.disabled,
             mirror: m.mirrorOf,
+            internal: m.internal,
             modes: m.modes
         }));
     }
@@ -140,8 +141,13 @@ QtObject {
         e.modes.forEach(md => {
             if (md.width === width && md.height === height) refresh = Math.max(refresh, md.refresh);
         });
-        const scale = MonitorService.isValidScale(width, height, e.scale)
-            ? e.scale : MonitorService.nearestValidScale(width, height, e.scale);
+        // Matryca laptopa: ta sama wielkość interfejsu po zmianie trybu
+        // (4K przy 200% → 1080p przy 100%). Kto zmienia tam rozdzielczość,
+        // chce zwykle innej ostrości albo mniejszego poboru, nie mniejszych
+        // napisów. Zewnętrzny monitor zostaje przy swojej skali.
+        const wanted = e.internal ? e.scale * width / e.width : e.scale;
+        const scale = MonitorService.isValidScale(width, height, wanted)
+            ? wanted : MonitorService.nearestValidScale(width, height, wanted);
         resize(name, { width: width, height: height, refresh: refresh, scale: scale });
     }
 

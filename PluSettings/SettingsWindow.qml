@@ -35,8 +35,9 @@ FloatingWindow {
         anchors.fill: parent
         focus: true
 
-        // Esc zamyka, jak launcher. Pole tekstowe połyka swój Esc samo.
-        Keys.onEscapePressed: SettingsApp.close()
+        // Esc zamyka, jak launcher, a z podstrony wraca. Pole tekstowe
+        // połyka swój Esc samo.
+        Keys.onEscapePressed: SettingsApp.detail !== "" ? SettingsApp.back() : SettingsApp.close()
 
         // Tło też w środku, nie tylko jako kolor okna: grabToImage łapie
         // elementy, a nie okno, i bez tego zrzut wychodzi przezroczysty.
@@ -149,6 +150,10 @@ FloatingWindow {
                     choiceMenu.close();
                     flick.contentY = 0;
                 }
+                function onDetailChanged() {
+                    choiceMenu.close();
+                    flick.contentY = 0;
+                }
             }
 
             // Lista liczy pozycję raz, przy otwarciu — przewinięta strona
@@ -163,21 +168,74 @@ FloatingWindow {
                 width: Math.min(win.contentMaxWidth, flick.width - 2 * win.contentMargin)
                 spacing: 20
 
-                Text {
-                    text: {
+                // Nagłówek; na podstronie „‹ Strona  ›  Podstrona”, klik wraca.
+                Row {
+                    id: heading
+
+                    readonly property bool sub: SettingsApp.detail !== ""
+                    readonly property string pageTitle: {
                         const p = SettingsApp.pages.find(p => p.id === SettingsApp.page);
                         return p ? p.title : "";
                     }
-                    color: Theme.text
-                    font.pixelSize: 16
-                    font.bold: true
+
+                    height: 22
+                    spacing: 4
+
+                    Icon {
+                        visible: heading.sub
+                        anchors.verticalCenter: parent.verticalCenter
+                        kind: "chevronLeft"
+                        size: 20
+                        color: backMouse.containsMouse ? Theme.accent : Theme.textDim
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: heading.pageTitle
+                        color: heading.sub ? (backMouse.containsMouse ? Theme.accent : Theme.textDim) : Theme.text
+                        font.pixelSize: 16
+                        font.bold: true
+
+                        MouseArea {
+                            id: backMouse
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            anchors.leftMargin: -28
+                            enabled: heading.sub
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: SettingsApp.back()
+                        }
+                    }
+
+                    Text {
+                        visible: heading.sub
+                        anchors.verticalCenter: parent.verticalCenter
+                        leftPadding: 6
+                        rightPadding: 6
+                        text: "›"
+                        color: Theme.textFaint
+                        font.pixelSize: 16
+                    }
+
+                    Text {
+                        visible: heading.sub
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.min(implicitWidth, body.width - x)
+                        elide: Text.ElideRight
+                        text: SettingsApp.detailTitle
+                        color: Theme.text
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
                 }
 
                 Loader {
                     id: pageLoader
 
                     width: body.width
-                    sourceComponent: SettingsApp.page === "monitors" ? monitorsPage
+                    sourceComponent: SettingsApp.page === "wifi" ? (SettingsApp.detail !== "" ? wifiProfilePage : wifiPage)
+                        : SettingsApp.page === "monitors" ? monitorsPage
                         : SettingsApp.page === "capture" ? capturePage
                         : SettingsApp.page === "island" ? islandPage : generalPage
 
@@ -220,6 +278,16 @@ FloatingWindow {
     Component {
         id: generalPage
         GeneralPage { width: pageLoader.width }
+    }
+
+    Component {
+        id: wifiPage
+        WifiPage { width: pageLoader.width }
+    }
+
+    Component {
+        id: wifiProfilePage
+        WifiProfilePage { width: pageLoader.width; uuid: SettingsApp.detail }
     }
 
     Component {

@@ -14,15 +14,16 @@ wyspy z `~/PluDynamicIsland`. Czysty QML, bez kroku budowania i bez testów.
 - **Launcher** (`PluLauncher/`): przyciemniony ekran z wyszukiwaniem i siatką
   aplikacji, ranking po częstości użycia. Otwierany `SUPER+R`, przyciskiem w docku i przez IPC.
 - **Pasek** (`PluBar/`): dwie pigułki u góry po bokach wyspy. Lewa: obszary
-  robocze i zasobnik. Prawa: jasność, głośność, mikrofon, sieć, Bluetooth,
+  robocze i zasobnik. Prawa: jasność, głośność, mikrofon, sieć, VPN (tylko gdy jest), Bluetooth,
   dyski wpinane (tylko z wpiętym), tryb energii z limitem ładowania, bateria,
   zasilanie. Klik w sieć lub BT otwiera nakładkę wyspy. Na pozostałych monitorach lewa pigułka z przyciskiem
   launchera i obszarami (bez zasobnika), a na dole dock z launcherem i ich
   oknami (`PluAppDock/MiniDock`).
 - **Ustawienia** (`PluSettings/`): zwykłe okno aplikacji ze stronami „Ogólne”
-  (`settings.json`), „Monitory”, „Schowek i zrzuty” i „Wyspa” (konfiguracja
-  PluDynamicIsland). Otwierane przez IPC,
-  prawym klikiem na zasilaniu w pasku i wpisem „Ustawienia PluDE” w launcherze.
+  (`settings.json`), „Wi-Fi” (NetworkManager), „Monitory”, „Schowek i zrzuty”
+  i „Wyspa” (konfiguracja PluDynamicIsland). Otwierane przez IPC,
+  prawym klikiem na zasilaniu w pasku (Wi-Fi: środkowym na sieci) i wpisem
+  „Ustawienia PluDE” w launcherze.
 - **Schowek** (`PluClipboard/`): historia schowka (tekst i obrazy) na
   `wl-clipboard`, panel jak launcher. `SUPER+SHIFT+V`, wpis „Schowek”, IPC.
 - **Zrzuty ekranu** (`PluScreenshot/`): `grim` + `slurp` + `swappy`, gotowy
@@ -41,11 +42,12 @@ timeout 6 qs -p . --no-color > run.log 2>&1      # przebieg kontrolny, 124 = suk
 qs log -p ~/PluDE | tail                         # log działającej instancji
 qs ipc -p ~/PluDE call launcher toggle           # launcher z zewnątrz
 qs ipc -p ~/PluDE call bar brightnessStep 5      # jasność (klawisze w hyprland.lua)
-qs ipc -p ~/PluDE call settings openPage monitors  # okno ustawień (open / toggle / close)
+qs ipc -p ~/PluDE call settings openPage monitors  # okno ustawień (open / toggle / close), też wifi
 qs ipc -p ~/PluDE call clipboard toggle          # historia schowka (show / hide / clear)
 qs ipc -p ~/PluDE call screenshot region         # zrzut: region / window / screen / text / edit
 qs ipc -p ~/PluDE call screenshot delayed screen 3   # zrzut za 3 s, z odliczaniem
 qs ipc -p ~/PluDE call drives list               # dyski wpinane (open <dev> / eject <dev> / ejectAll)
+qs ipc -p ~/PluDE call vpn list                  # VPN (toggle / set <klucz> <bool> / exitNode <ip>)
 hyprctl globalshortcuts                          # czy skróty quickshell:* się zarejestrowały
 hyprctl layers -j                                # przestrzenie nazw plude-dock / -launcher / -bar / -clipboard / -shot
 ```
@@ -104,13 +106,14 @@ Common/      Theme, Settings, Apps, Pins, IslandLink, PopupMenu, Icon
 PluAppDock/  Dock (okno), DockItem (delegat), DockService (model), MiniDock
 PluLauncher/ Launcher (okno), LauncherService (stan, wyszukiwanie, częstość)
 PluBar/      Bar (okno), BarButton, SliderPanel, Audio, Brightness, Connectivity,
-             BatteryLimit, 99-plude-battery.rules, Drives, DrivesPanel
+             BatteryLimit, 99-plude-battery.rules, Drives, DrivesPanel, Vpn
 PluClipboard/  ClipboardService (historia, stan okna), Clipboard (okno), clip-store.sh
 PluScreenshot/ ScreenshotService (kolejność kroków), ShotToast (podgląd w rogu)
 PluSettings/ SettingsApp (stan okna), SettingsWindow, GeneralPage, MonitorsPage, CapturePage,
              IslandPage, IslandConfigService (config.jsonc wyspy),
+             WifiService, nm-wifi.py, WifiPage, WifiProfilePage, WifiNetworkRow,
              MonitorService, MonitorDraft (szkic układu), MonitorCanvas,
-             MonitorConfirm, ChoiceMenu, kontrolki Settings{Section,Row,Switch,Field,Choice,Button,Color}
+             MonitorConfirm, ChoiceMenu, kontrolki Settings{Section,Row,NavRow,Switch,Field,Choice,Button,Color}
 ```
 
 **Launcher nie importuje docka** (dock importuje launcher dla przycisku
@@ -137,8 +140,8 @@ i restartowała mostki. Rozmowa między procesami:
   (`hud_bridge.py`, inotify na sysfs). Zapis przez logind daje IN_MODIFY
   (zmierzone), PluDE nic nie wysyła.
 - **pasek → wyspa**: `… call island toggleOverlay wifi|bluetooth` (nakładka
-  Wi-Fi / BT; ta sama drugi raz ją zamyka). Martwa wyspa → `nmtui` /
-  `bluetoothctl` w terminalu.
+  Wi-Fi / BT; ta sama drugi raz ją zamyka). Martwa wyspa → strona Wi-Fi
+  w ustawieniach / `bluetoothctl` w terminalu.
 - **Klucz aplikacji** po obu stronach to id wpisu `.desktop`.
 
 Media (znaczek odtwarzania) czytamy sami z MPRIS, nie przez wyspę. Wyspa wybiera
@@ -148,7 +151,7 @@ jeden odtwarzacz, a dock pokazuje znaczek przy każdym grającym.
 
 - `~/.config/plude/settings.json`: monitor, terminal, ścieżka wyspy,
   `hideWithIsland`, `barReserve`, `screenshot*`, `ocrLanguages`, `clipboard*`, `batteryLimit`,
-  `drivesAnnounce`. Pisze go okno ustawień (`Settings.set`), ale
+  `drivesAnnounce`, `vpnLast` (pisze program). Pisze go okno ustawień (`Settings.set`), ale
   można go dalej edytować ręcznie. Zmiany wchodzą na żywo.
 - `~/.config/plude/dock.json`: przypięte, pisze go program.
 - `~/.config/plude/launcher.json`: licznik i czas ostatniego uruchomienia.
@@ -352,6 +355,26 @@ z wyspy).
   („Failed to create grabbing popup”): do zrzutu w kopii zamień go na
   `PanelWindow`.
 
+### VPN (`PluBar/Vpn`)
+
+- Dwa źródła: **Tailscale** (`tailscale status --json` + `debug prefs` w jednym
+  procesie) i połączenia `vpn` / `wireguard` z NetworkManagera (`nmcli -t`,
+  `\:` w nazwach). `tailscale0` to w NM „tun”, więc się nie dubluje. Klucz
+  pozycji: `tailscale` albo `nm:<uuid>`. Przycisk tylko przy `Vpn.available`.
+- Zmiany: `tailscale debug watch-ipn --peer-changes=false --peer-patches=false`
+  (zmierzone: 1 linia na 15 s bez zmian, czyli tylko „Connected.”) i
+  `nmcli monitor`, po serii linii jeden odczyt. Kod 127 = brak programu, bez
+  wznawiania.
+- Gołe `tailscale up` przy zalogowanym profilu tylko ustawia WantRunning, nie
+  wymaga powtarzania flag (`RouteAll` itd.).
+- **Zapis w tailscaled tylko dla roota albo operatora.** `OperatorUser`
+  z `debug prefs` (brak klucza = nikt); bez niego panel pokazuje notkę i wpis,
+  który otwiera `sudo tailscale set --operator=$USER` w terminalu. Odmowa
+  przy próbie też włącza tę podpowiedź (`denied`).
+- Klik: panel (lista, węzły wyjściowe przy włączonym Tailscale), prawy:
+  wyłącz wszystko albo włącz `vpnLast`. Wynik akcji to zerknięcie wyspy
+  (`lock` / `lockOpen` / `warning`, `IslandLink.glance`).
+
 ### Ikony
 
 - **`//@ pragma IconTheme breeze-dark` w `shell.qml` jest konieczne.** Bez niego
@@ -545,13 +568,25 @@ i przeżywają jej przeładowanie.
   kliknięciu obok i przepuszcza je dalej (klik w inną listę otwiera ją od razu,
   klik we własne pole tylko zamyka). Zamyka się też przy przewinięciu strony
   i zmianie rozmiaru okna. Strzałki, Enter, Esc (Esc zamyka listę, nie okno).
-- Tryby monitora to tylko to, co zgłasza EDID. Matryca laptopa (Sharp 4K) ma
+- Tryby monitora to to, co zgłasza EDID. Matryca laptopa (Sharp 4K) ma
   jeden tryb, jądro też widzi tylko `3840x2160` (`/sys/class/drm/card1-eDP-1/modes`).
+  Dla ekranu wbudowanego (`eDP-`, `LVDS-`, `DSI-`) `modesOf` dokłada niższe
+  rozdzielczości o tych samych proporcjach (`scaled`, „skalowana” na liście):
+  Hyprland ustawia je jako tryb własny, a i915 skaluje do natywnego (zmierzone:
+  `1920x1080@60` na eDP-1 przyjęte, `monitors -j` podaje 1920×1080). Zmiana
+  trybu matrycy zachowuje wielkość interfejsu (4K@200% → 1080p@100%).
+  Zewnętrznym nie dokładamy: tryb spoza EDID potrafi dać czarny ekran.
 - Pole (`SettingsField`) zapisuje przy Enterze lub wyjściu z pola, Esc cofa
   zmianę. `value` wchodzi do pola tylko bez fokusu (pułapka `text:`).
 - Zrzut: `ld.item.contentItem.children[0]` (FocusScope). W oknie jest osobny
   prostokąt tła, bo bez niego zrzut wychodzi przezroczysty. W sondzie przestaw
   `Settings.configDir` na katalog roboczy, żeby `set` nie pisał prawdziwego pliku.
+  Całą stronę (dłuższą niż okno): w sondzie przepnij `flick.contentItem.children[1]`
+  (kolumna treści) do `Rectangle` z tłem, utworzonego `Qt.createQmlObject`
+  w `contentItem`, i chwyć prostokąt (działa dla wysokości większej niż okno).
+  Sondzie wystarczy własny `shell.qml` w kopii z samym `LazyLoader` okna.
+- Podstrona (`SettingsApp.detail` + `detailTitle`): nagłówek „‹ Strona › Podstrona”,
+  Esc i klik w nazwę strony wracają, zmiana strony ją zamyka.
 
 ### Strona „Wyspa” (`PluSettings/IslandConfigService`)
 
@@ -592,6 +627,38 @@ Domyślne i listę opcji bierzemy z tego samego `config.default.jsonc` w
   z oryginałem (`diff` pusty).
 - Sonda: w kopii podmień `userPath` na plik w katalogu roboczym, inaczej
   zapisy zmienią prawdziwą wyspę na żywo.
+
+### Wi-Fi (`PluSettings/WifiService`, `nm-wifi.py`)
+
+- `Quickshell.Networking` nie zna pasma, kanału, adresów ani ustawień profilu,
+  a `connectWithSettings()` chce typu niedostępnego z QML (jak w wyspie). Stan
+  daje **`nm-wifi.py watch`** (libnm przez gi): jeden proces na czas otwartej
+  strony (`WifiService.watchers`), pełny JSON po każdej zmianie (seria sygnałów
+  → jeden stan po 400 ms, zapas co 20 s). Odpytywanie odpadło: sam import gi to
+  ~0,4 s procesora na odczyt (zmierzone). `ingest` przypisuje tylko pola,
+  których JSON się zmienił, bo siła sygnału zmienia się co kilka sekund.
+- Akcje z sekretem (nowa sieć, hasło zapisanej, odczyt hasła) idą do
+  `nm-wifi.py` **prośbą JSON na stdin**, nigdy przez argv. `add` / `up` czekają
+  na wynik (do 40 s) i zwracają polski powód z `NMDeviceStateReason`;
+  nieudane `add` kasuje założony profil. Reszta profilu (autołączenie,
+  priorytet, taryfa, MAC, oszczędzanie energii, IPv4/IPv6, DNS) to
+  `nmcli connection modify`, w aktywnej sieci potem `device reapply`, a gdy się
+  nie da (MAC) `connection up`. „Rozłącz” = `device disconnect` (NM nie skacze
+  wtedy sam do innej zapisanej sieci).
+- `setSecret`: `commit_changes` zastępuje cały profil, więc najpierw
+  `update_secrets` z `get_secrets` (bez tego znikłyby inne sekrety). Filtr
+  `DeprecationWarning` stoi **po** imporcie gi, bo gi dokłada własny przed nim.
+  Sprawdzone na atrapie profilu (`nmcli con add … autoconnect no`, nieistniejące
+  SSID): hasło, walidacja 8–63, modify IP/DNS/MAC/priorytetu, odczyt.
+  **Nie testuj `up` / `add` na prawdziwej karcie**: rozłącza bieżącą sieć.
+- Listy na stronie stoją na `ListModel` synchronizowanym po kluczu (`syncKeys`,
+  SSID / uuid), nie na tablicy: nowe delegaty co kilka sekund gubiłyby
+  rozwinięty wiersz i wpisywane hasło. Przy rozwiniętym wierszu kolejność stoi.
+- Kod QR: `qrencode -t SVG` z treścią `WIFI:T:…;S:…;P:…;;` na stdin, wynik jako
+  `data:image/svg+xml` w `Image` (sprawdzone sondą). Ciemny na białym.
+- Skanowanie w tle (`scannerEnabled`) tylko przy otwartej stronie, jak w wyspie.
+- Podstrona sieci pokazuje wartość od razu po zmianie (`pending`), zanim nasłuch
+  przyniesie nowy profil; błąd nmcli ją cofa.
 
 ### Monitory (`PluSettings/MonitorService`)
 
